@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade & Simulation Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --accent-cyber: #06b6d4;
+            --accent-racing: #ef4444;
+            --accent-sim: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --card-border: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 4rem;
+            max-width: 600px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            margin-bottom: 0.75rem;
+            background: linear-gradient(to right, #38bdf8, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        .game-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .game-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--accent-color, #fff);
+            opacity: 0.7;
+        }
+
+        .game-card:hover {
+            transform: translateY(-6px);
+            border-color: var(--accent-color);
+            box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            margin-bottom: 1.25rem;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .card-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .launch-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 0.85rem;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .game-card:hover .launch-btn {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+            color: #000;
+            font-weight: 700;
+        }
+
+        .launch-btn svg {
+            margin-left: 0.5rem;
+            transition: transform 0.2s ease;
+        }
+
+        .game-card:hover .launch-btn svg {
+            transform: translateX(3px);
+        }
+
+        footer {
+            margin-top: auto;
+            padding-top: 5rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Project Lab</h1>
+        <p>A collection of custom web simulations, procedural generation engines, and arcade concepts developed with exhaustive use of Gemini</p>
+    </header>
+
+    <main class="grid-container">
+         
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Trump Simulator 3</h2>
+                <p>Idle management game for those interested in world domination</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="TrumpSim/trump3.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+        
+ 
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>ICE Shooter</h2>
+                <p>Rid house after house of those pesky mexicans!</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="ICE Shooter/IceShooter1.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+        
+ 
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Iran Bomber</h2>
+                <p>Destroy the Iranians while dodging their defenses</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="IranBomber/IranBomberV1.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+        
+ 
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Mic Spin 2</h2>
+                <p>Help the Artemis II crew spin the mic to prevent good 'ol Donny from ranting</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="MicSpin/MicSpin2.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+        
+ 
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Border Crosser</h2>
+                <p>Cross the American border. Except, it never ends. No anchor baby for you!</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="Border Crossing/BorderCrosserV1.1a.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+         
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Hallway Hustle 2</h2>
+                <p>Race through the hall while dodging classmates</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="Border Crossing/HallwayHustleV2.1.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+        
+ 
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Crowded Canyon 2 (Alpha)</h2>
+                <p>Hallway Hustle, but with a twist</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="Border Crossing/CrowdedCanyonV2a.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>
+
+        <div class="game-card" style="--accent-color: var(--accent-cyber);">
+            <div class="card-content">
+                <h2>Shadow Protocol</h2>
+                <p>Simple OSINT and hacking sim</p>
+            </div>
+            <!-- Swap the href attribute below with your local path, e.g., href="shadow-protocol/index.html" -->
+            <a href="Hacking/Hacking.html" class="launch-btn">
+                Play
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </a>
+        </div>        
+
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Vibe Code Studios</p>
+    </footer>
+
+</body>
+</html>

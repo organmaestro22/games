@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Border Stealth: Tactical HUD</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #050508;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas { display: block; }
+        
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            color: #fff; pointer-events: none; z-index: 10;
+        }
+        .stat {
+            background: rgba(0, 0, 0, 0.85); padding: 12px 20px;
+            border: 1px solid #333; margin-bottom: 8px; border-radius: 4px; min-width: 120px;
+        }
+        .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 26px; font-weight: bold; color: #fff; }
+
+        /* Progress Bar */
+        #progress-container {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            width: 300px; height: 10px; background: rgba(255,255,255,0.1);
+            border-radius: 5px; overflow: hidden; border: 1px solid #444;
+        }
+        #progress-fill {
+            width: 0%; height: 100%; background: #2ecc71;
+            box-shadow: 0 0 15px #2ecc71; transition: width 0.2s;
+        }
+
+        /* Messages */
+        #hint-text {
+            position: absolute; bottom: 15%; left: 50%; transform: translateX(-50%);
+            color: rgba(255,255,255,0.6); font-size: 18px; letter-spacing: 2px;
+            text-transform: uppercase; pointer-events: none;
+        }
+        #sector-log {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            color: #f1c40f; font-size: 20px; font-weight: bold;
+            opacity: 0; transition: opacity 0.3s; text-transform: uppercase;
+        }
+
+        #msg-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 0, 0, 0.95); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            color: white; z-index: 100;
+        }
+        button {
+            background: #bc4749; border: none; padding: 15px 45px;
+            font-size: 18px; color: white; cursor: pointer;
+            margin-top: 25px; font-weight: bold; text-transform: uppercase;
+        }
+        #level-notif {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            color: #2ecc71; font-size: 45px; font-weight: 900;
+            opacity: 0; pointer-events: none; z-index: 50;
+            text-shadow: 0 0 25px rgba(46, 204, 113, 0.6);
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="stat"><div class="stat-label">Sector</div><div id="level-val" class="stat-value">1</div></div>
+    <div class="stat"><div class="stat-label">Score</div><div id="score-val" class="stat-value">0</div></div>
+</div>
+
+<div id="progress-container"><div id="progress-fill"></div></div>
+<div id="hint-text">Move Up to Infiltrate</div>
+<div id="sector-log">Wall 1 of 1 Cleared</div>
+
+<div id="level-notif">SECTOR SECURED</div>
+<div id="msg-overlay">
+    <h1 style="font-size: 60px; margin: 0; color: #bc4749;">TERMINATED</h1>
+    <button id="retryBtn">Retry Mission</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const msgOverlay = document.getElementById('msg-overlay');
+    const levelNotif = document.getElementById('level-notif');
+    const retryBtn = document.getElementById('retryBtn');
+    const progressFill = document.getElementById('progress-fill');
+    const hintText = document.getElementById('hint-text');
+    const sectorLog = document.getElementById('sector-log');
+
+    const WALL_H = 24;
+    const GAP_W = 110;
+    const WALL_SPACING = 1500; 
+    const DEADZONE_X = 220;
+    const DEADZONE_Y = 160;
+
+    let gameActive = true;
+    let level = 1;
+    let score = 0;
+    let frameCount = 0;
+    let isTransitioning = false;
+    const keys = {};
+
+    const camera = { x: 0, y: 0 };
+    let walls = [];
+    let guards = [];
+    let lastSpawnX = 0;
+    let spawnY = 600;
+
+    const player = {
+        x: 0, y: 0, prevX: 0, prevY: 0,
+        r: 10, speed: 7, color: '#2ecc71'
+    };
+
+    function init() {
+        resize();
+        setupSector();
+        requestAnimationFrame(loop);
+    }
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+
+    function setupSector() {
+        const wallCount = Math.floor((level - 1) / 3) + 1;
+        walls = [];
+        guards = [];
+        player.x = canvas.width / 2;
+        player.y = spawnY; 
+        player.prevX = player.x;
+        player.prevY = player.y;
+        camera.x = player.x - canvas.width / 2;
+        camera.y = player.y - canvas.height / 2;
+
+        for (let i = 0; i < wallCount; i++) {
+            const wallY = -(i * WALL_SPACING);
+            walls.push({
+                y: wallY,
+                gaps: [],
+                prob: Math.max(0.06, 0.22 - (i * 0.02)),
+                isTarget: (i === wallCount - 1),
+                cleared: false,
+                index: i + 1
+            });
+        }
+        generateGapsAround(player.x - 8000, player.x + 8000);
+        lastSpawnX = player.x;
+        spawnGuards();
+        isTransitioning = false;
+        hintText.style.opacity = "1";
+    }
+
+    function generateGapsAround(minX, maxX) {
+        walls.forEach(wall => {
+            for (let x = minX; x < maxX; x += 750) {
+                if (Math.random() < wall.prob) {
+                    const gapX = x + Math.random() * (750 - GAP_W);
+                    if (!wall.gaps.some(g => Math.abs(g.x - gapX) < 400)) {
+                        wall.gaps.push({ x: gapX, w: GAP_W });
+                    }
+                }
+            }
+            wall.gaps.sort((a, b) => a.x - b.x);
+        });
+    }
+
+    function spawnGuards() {
+        const count = 22 + (level * 6); 
+        const topWallY = walls[walls.length - 1].y;
+        const bottomLimit = player.y + 400;
+        const fieldHeight = bottomLimit - (topWallY - 1000);
+
+        for (let i = 0; i < count; i++) {
+            let gx, gy;
+            let attempts = 0;
+            do {
+                gx = player.x + (Math.random() - 0.5) * 6500;
+                gy = bottomLimit - (Math.random() * fieldHeight);
+                attempts++;
+            } while (Math.hypot(player.x - gx, player.y - gy) < 400 && attempts < 50);
+
+            guards.push({
+                x: gx, y: gy,
+                speed: (3 + Math.random() * 3.5) * (1 + level * 0.04),
+                dir: Math.random() > 0.5 ? 1 : -1,
+                visualRadius: 180 + (level * 5), // Increased Glow
+                hitRadius: 22, 
+            });
+        }
+    }
+
+    function showWallCleared(idx) {
+        sectorLog.innerText = `Wall ${idx} of ${walls.length} Cleared`;
+        sectorLog.style.opacity = "1";
+        setTimeout(() => sectorLog.style.opacity = "0", 2000);
+    }
+
+    function levelUp() {
+        if (isTransitioning) return;
+        isTransitioning = true;
+        score += 1000 * level;
+        level++;
+        document.getElementById('level-val').innerText = level;
+        document.getElementById('score-val').innerText = score;
+        levelNotif.style.opacity = '1';
+        setTimeout(() => {
+            levelNotif.style.opacity = '0';
+            setupSector(); 
+        }, 800);
+    }
+
+    function resetGame() {
+        level = 1; score = 0;
+        document.getElementById('level-val').innerText = level;
+        document.getElementById('score-val').innerText = score;
+        msgOverlay.style.display = 'none';
+        gameActive = true;
+        setupSector();
+        requestAnimationFrame(loop);
+    }
+
+    retryBtn.addEventListener('click', resetGame);
+    window.addEventListener('resize', resize);
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function loop() {
+        if (!gameActive) return;
+
+        if (!isTransitioning) {
+            player.prevX = player.x;
+            player.prevY = player.y;
+
+            if (keys['ArrowUp'] || keys['KeyW']) {
+                player.y -= player.speed;
+                hintText.style.opacity = Math.max(0, hintText.style.opacity - 0.05);
+            }
+            if (keys['ArrowDown'] || keys['KeyS']) player.y += player.speed;
+            if (keys['ArrowLeft'] || keys['KeyA']) player.x -= player.speed;
+            if (keys['ArrowRight'] || keys['KeyD']) player.x += player.speed;
+
+            // Progress HUD Logic
+            const targetY = walls[walls.length - 1].y;
+            const totalDist = spawnY - targetY;
+            const currentDist = spawnY - player.y;
+            const progress = Math.min(100, Math.max(0, (currentDist / totalDist) * 100));
+            progressFill.style.width = progress + "%";
+
+            // Collision & Goal Logic
+            walls.forEach(wall => {
+                const wallTop = wall.y;
+                const wallBot = wall.y + WALL_H;
+                const crossedPlane = (player.prevY >= wallBot && player.y <= wallBot) || 
+                                     (player.prevY <= wallTop && player.y >= wallTop);
+
+                if (crossedPlane || (player.y + player.r > wallTop && player.y - player.r < wallBot)) {
+                    const inGap = wall.gaps.some(g => player.x > g.x && player.x < g.x + g.w);
+                    if (inGap) {
+                        if (player.y < wallTop && !wall.cleared) {
+                            wall.cleared = true;
+                            if (wall.isTarget) levelUp();
+                            else showWallCleared(wall.index);
+                        }
+                    } else {
+                        if (player.prevY >= wallBot) player.y = wallBot + player.r;
+                        else if (player.prevY <= wallTop) player.y = wallTop - player.r;
+                    }
+                }
+            });
+
+            // Guard Logic
+            guards.forEach(g => {
+                g.x += g.speed * g.dir;
+                if (g.x < player.x - 4000) g.x += 8000;
+                if (g.x > player.x + 4000) g.x -= 8000;
+
+                const dist = Math.hypot(player.x - g.x, player.y - g.y);
+                if (dist < g.hitRadius + player.r) {
+                    let occluded = false;
+                    walls.forEach(wall => {
+                        const wY = wall.y + (WALL_H/2);
+                        if ((g.y < wY && player.y > wY) || (g.y > wY && player.y < wY)) {
+                            const intersectX = g.x + (player.x - g.x) * ((wY - g.y) / (player.y - g.y));
+                            if (!wall.gaps.some(gap => intersectX > gap.x && intersectX < gap.x + gap.w)) occluded = true;
+                        }
+                    });
+                    if (!occluded) {
+                        gameActive = false;
+                        msgOverlay.style.display = 'flex';
+                    }
+                }
+            });
+
+            // Camera Tracking
+            const vCX = camera.x + canvas.width / 2;
+            const vCY = camera.y + canvas.height / 2;
+            if (player.x > vCX + DEADZONE_X) camera.x += (player.x - (vCX + DEADZONE_X));
+            if (player.x < vCX - DEADZONE_X) camera.x += (player.x - (vCX - DEADZONE_X));
+            if (player.y > vCY + DEADZONE_Y) camera.y += (player.y - (vCY + DEADZONE_Y));
+            if (player.y < vCY - DEADZONE_Y) camera.y += (player.y - (vCY - DEADZONE_Y));
+
+            if (Math.abs(player.x - lastSpawnX) > 2500) {
+                const dir = player.x > lastSpawnX ? 1 : -1;
+                generateGapsAround(player.x + (dir * 5000), player.x + (dir * 10000));
+                lastSpawnX = player.x;
+            }
+        }
+
+        draw();
+        frameCount++;
+        requestAnimationFrame(loop);
+    }
+
+    function draw() {
+        ctx.fillStyle = '#050508';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(-camera.x, -camera.y);
+
+        // Grid
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+        for (let x = Math.floor(camera.x/400)*400; x < camera.x + canvas.width + 400; x += 400) {
+            for (let y = Math.floor(camera.y/400)*400; y < camera.y + canvas.height + 400; y += 400) {
+                ctx.fillRect(x, y, 2, 2);
+            }
+        }
+
+        // Walls
+        walls.forEach(wall => {
+            ctx.fillStyle = wall.cleared ? '#2d4d3a' : '#1a1a24';
+            let curX = camera.x - 2000;
+            wall.gaps.forEach(g => {
+                ctx.fillRect(curX, wall.y, g.x - curX, WALL_H);
+                ctx.fillStyle = wall.cleared ? 'rgba(46, 204, 113, 0.5)' : 'rgba(255, 50, 50, 0.4)';
+                ctx.fillRect(g.x - 2, wall.y - 4, 4, WALL_H + 8);
+                ctx.fillRect(g.x + g.w - 2, wall.y - 4, 4, WALL_H + 8);
+                ctx.fillStyle = wall.cleared ? '#2d4d3a' : '#1a1a24';
+                curX = g.x + g.w;
+            });
+            ctx.fillRect(curX, wall.y, (camera.x + canvas.width + 2000) - curX, WALL_H);
+        });
+
+        // Guards
+        guards.forEach(g => {
+            const flicker = Math.sin(frameCount * 0.1) * 8;
+            const grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, g.visualRadius + flicker);
+            grad.addColorStop(0, 'rgba(255, 30, 30, 0.4)');
+            grad.addColorStop(0.6, 'rgba(255, 30, 30, 0.03)');
+            grad.addColorStop(1, 'rgba(255, 30, 30, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(g.x, g.y, g.visualRadius + flicker, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ff4d4d';
+            ctx.beginPath();
+            ctx.arc(g.x, g.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Player
+        if (!isTransitioning) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = player.color;
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+    }
+    init();
+</script>
+</body>
+</html>

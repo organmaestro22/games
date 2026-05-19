@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Great Silence</title>
+    <style>
+        :root {
+            --neon-cyan: #66fcf1;
+            --space-black: #0b0c10;
+            --deep-blue: #1f2833;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
+            background: var(--space-black) url('Background.jpg') no-repeat center center;
+            background-size: cover;
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            color: white;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #vignette {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.7) 100%);
+            z-index: 1; pointer-events: none;
+        }
+
+        #ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100%; }
+
+        #timer-display {
+            padding-top: 40px; text-align: center; font-size: 4rem; font-weight: 900;
+            color: var(--neon-cyan); text-shadow: 0 0 30px rgba(102, 252, 241, 0.6);
+            letter-spacing: -2px;
+        }
+
+        #sidebar {
+            position: absolute; left: 30px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        #portrait {
+            width: 120px; height: 120px; border-radius: 50%;
+            border: 4px solid var(--neon-cyan); margin-bottom: 20px;
+            background-size: cover; background-position: center;
+            background-color: var(--deep-blue);
+            box-shadow: 0 0 25px rgba(102, 252, 241, 0.3);
+            transition: background-image 0.2s ease;
+        }
+
+        #meter-container {
+            width: 24px; height: 300px; background: rgba(0,0,0,0.6);
+            border: 2px solid #45a29e; border-radius: 12px; overflow: hidden;
+            position: relative; box-shadow: inset 0 0 10px black;
+        }
+
+        #meter-fill {
+            position: absolute; bottom: 0; width: 100%; height: 100%;
+            background: #00ff00; transform-origin: bottom;
+            transition: transform 0.1s linear, background 0.4s ease;
+        }
+
+        #mic {
+            position: absolute; 
+            width: 150px; 
+            height: 450px; 
+            cursor: grab;
+            transform: translate(-50%, -50%); 
+            will-change: transform; 
+            z-index: 5;
+            background: url('Microphone.png') no-repeat center center;
+            background-size: contain;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.8));
+            display: none;
+        }
+        #mic:active { cursor: grabbing; }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 12, 16, 0.95); display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; text-align: center; padding: 20px;
+        }
+
+        .card {
+            background: var(--deep-blue); padding: 40px; border-radius: 20px;
+            border: 1px solid var(--neon-cyan); max-width: 500px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        h1 { color: var(--neon-cyan); margin-top: 0; font-size: 2.5rem; text-transform: uppercase; }
+        p { line-height: 1.6; color: #c5c6c7; font-size: 1.1rem; }
+        
+        button {
+            background: var(--neon-cyan); color: var(--space-black);
+            border: none; padding: 15px 40px; font-size: 1.2rem; font-weight: bold;
+            text-transform: uppercase; cursor: pointer; border-radius: 5px;
+            transition: 0.2s; margin-top: 20px;
+        }
+        button:hover { background: white; transform: scale(1.05); box-shadow: 0 0 20px var(--neon-cyan); }
+    </style>
+</head>
+<body>
+
+    <div id="vignette"></div>
+    <div id="ui-layer">
+        <div id="timer-display">0.00s</div>
+        <div id="sidebar">
+            <div id="portrait"></div>
+            <div id="meter-container"><div id="meter-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="mic"></div>
+
+    <div id="welcome" class="overlay">
+        <div class="card">
+            <h1>Mission: Total Silence</h1>
+            <p>Follow in the footsteps of <b>Artemis II</b> to achieve legendary silence. Don't let the mission fail.</p>
+            <p>You can <b>strike</b> the mic with a quick swipe or <b>grab and toss</b> it. Keep Trump entranced or else he will break the beautiful silence with yet another rant.</p>
+            <button onclick="startGame()">Let the Silence Begin</button>
+        </div>
+    </div>
+
+    <div id="game-over" class="overlay" style="display:none;">
+        <div class="card">
+            <h1 style="color: #ff4d4d;">"Are You Guys Still on the Line?"</h1>
+            <div id="final-score" style="font-size: 3rem; margin: 10px 0;">0.00s</div>
+            <p id="commentary" style="font-style: italic; color: #ffc107; min-height: 3em;"></p>
+            <button onclick="startGame()">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        const mic = document.getElementById('mic');
+        const meterFill = document.getElementById('meter-fill');
+        const portrait = document.getElementById('portrait');
+        const timerDisplay = document.getElementById('timer-display');
+        const welcomeScreen = document.getElementById('welcome');
+        const gameOverScreen = document.getElementById('game-over');
+
+        const assets = {
+            happy: 'TrumpHappy.jpg',
+            annoyed: 'TrumpAnnoyed.jpg',
+            angry: 'TrumpAngry.jpg'
+        };
+
+        Object.values(assets).forEach(a => { const img = new Image(); img.src = a; });
+
+        // Physics Config
+        const DAMPING = 0.995;
+        const SPIN_DAMPING = 0.985;
+        const MASS = 1.0; 
+        const micW = 150, micH = 450;
+        const MOMENT_OF_INERTIA = (1) * MASS * Math.pow(micH, 2);
+        const IMPULSE_STRENGTH = 1.2;
+
+        let isPlaying = false, pleasure = 100, lastFrameTime, survivalTime = 0;
+        let x, y, vx, vy, angle, av; 
+        let lastMx, lastMy, mx = 0, my = 0, mvx = 0, mvy = 0;
+        let isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
+        let currentMood = '';
+
+        function startGame() {
+            welcomeScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            mic.style.display = 'block';
+            
+            x = window.innerWidth / 2;
+            y = window.innerHeight / 2;
+            vx = (Math.random() - 0.5) * 3;
+            vy = (Math.random() - 0.5) * 3;
+            angle = 0;
+            av = 0.5;
+            pleasure = 100;
+            survivalTime = 0;
+            currentMood = '';
+            lastFrameTime = performance.now();
+            isPlaying = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onpointerdown = (e) => {
+            if (!isPlaying) return;
+            const collision = isPointInMic(e.clientX, e.clientY);
+            if (collision.hit) {
+                isDragging = true;
+                dragOffsetX = e.clientX - x;
+                dragOffsetY = e.clientY - y;
+            }
+        };
+
+        window.onpointermove = (e) => { mx = e.clientX; my = e.clientY; };
+        window.onpointerup = () => {
+            if (isDragging) {
+                vx = mvx * 0.8;
+                vy = mvy * 0.8;
+                isDragging = false;
+            }
+        };
+
+        function isPointInMic(px, py) {
+            const dx = px - x, dy = py - y;
+            const cos = Math.cos(-angle * Math.PI / 180);
+            const sin = Math.sin(-angle * Math.PI / 180);
+            const rx = dx * cos - dy * sin;
+            const ry = dx * sin + dy * cos;
+            return {
+                hit: Math.abs(rx) < micW/2 && Math.abs(ry) < micH/2,
+                localX: rx,
+                localY: ry
+            };
+        }
+
+        function gameLoop(now) {
+            if (!isPlaying) return;
+
+            const dt = (now - lastFrameTime) / 1000;
+            lastFrameTime = now;
+
+            // --- SCORE ANTI-CHEAT ---
+            // We only add the actual dt (capped to prevent weird jumps)
+            // If the user tabs away, the first dt back will be large, 
+            // but the meter will empty BEFORE we add that time to survivalTime.
+            const frameTime = Math.min(dt, 0.1); 
+
+            if (lastMx !== undefined) {
+                mvx = mx - lastMx;
+                mvy = my - lastMy;
+            }
+
+            if (isDragging) {
+                x = mx - dragOffsetX;
+                y = my - dragOffsetY;
+                av = mvx * 0.1; 
+            } else {
+                const collision = isPointInMic(mx, my);
+                if (collision.hit && (Math.abs(mvx) > 1 || Math.abs(mvy) > 1)) {
+                    vx += (mvx * IMPULSE_STRENGTH) / MASS * 0.1;
+                    vy += (mvy * IMPULSE_STRENGTH) / MASS * 0.1;
+                    const torque = (collision.localY * mvx - collision.localX * mvy) * IMPULSE_STRENGTH;
+                    av += (torque / MOMENT_OF_INERTIA) * 100;
+                }
+                x += vx; y += vy; angle += av;
+                vx *= DAMPING; vy *= DAMPING; av *= SPIN_DAMPING;
+                const padW = 75, padH = 180; 
+                if (x < padW || x > window.innerWidth - padW) { vx *= -0.7; x = x < padW ? padW : window.innerWidth - padW; }
+                if (y < padH || y > window.innerHeight - padH) { vy *= -0.7; y = y < padH ? padH : window.innerHeight - padH; }
+            }
+
+            mic.style.left = `${x}px`;
+            mic.style.top = `${y}px`;
+            mic.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+
+            // --- METER DRAIN (Real Time) ---
+            const motion = Math.sqrt(vx*vx + vy*vy) + Math.abs(av);
+            pleasure += motion * 0.045;
+            
+            const drainRate = 14 + (survivalTime * 3);
+            const totalDrain = drainRate * dt;
+
+            // If the drain from being away is more than what's left, game over immediately
+            if (pleasure - totalDrain <= 0) {
+                // Calculate how much time they actually survived before pleasure hit 0
+                const actualSurvival = (pleasure / drainRate);
+                survivalTime += actualSurvival;
+                pleasure = 0;
+                endGame();
+                return;
+            }
+
+            pleasure -= totalDrain;
+            survivalTime += dt; // Only add time if they are still alive
+            timerDisplay.innerText = survivalTime.toFixed(2) + 's';
+
+            pleasure = Math.min(100, Math.max(0, pleasure));
+            meterFill.style.transform = `scaleY(${pleasure / 100})`;
+            
+            if (pleasure > 66) setMood('happy', '#00ff00');
+            else if (pleasure > 33) setMood('annoyed', '#ffd700');
+            else setMood('angry', '#ff4d4d');
+
+            lastMx = mx; lastMy = my;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function setMood(m, c) {
+            if (currentMood === m) return;
+            currentMood = m;
+            portrait.style.backgroundImage = `url('${assets[m]}')`;
+            meterFill.style.background = c;
+        }
+
+        function endGame() {
+            isPlaying = false;
+            isDragging = false;
+            mic.style.display = 'none';
+            gameOverScreen.style.display = 'flex';
+            document.getElementById('final-score').innerText = survivalTime.toFixed(2) + 's';
+            
+            const comm = document.getElementById('commentary');
+            if (survivalTime < 15) comm.innerHTML = 'Disaster. Trump rants for twenty minutes straight. The Artemis mission is a failure. We are all doomed.';
+            else if (survivalTime < 35) comm.innerHTML = 'Weak. Trump talks about raising gas prices. Be ready for $5/gallon.';
+            else if (survivalTime < 63) comm.innerHTML = 'Trump is stunned but still decides to talk about Canadian hockey players. Not the worst, but we can do better.';
+            else comm.innerHTML = 'Incredible. Trump is so mesmerized that he rewards you with an island vacation. Click <a href="https://freebobux.win:1235/pt" style="color: var(--neon-cyan); text-decoration: none; font-weight: bold;">here</a> to pay him a visit.';
+        }
+    </script>
+</body>
+</html>

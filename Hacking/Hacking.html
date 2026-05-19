@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Protocol // Nightfall V5</title>
+    <style>
+        :root {
+            --green: #00ff41; --blue: #00d4ff; --red: #ff3e3e; --yellow: #ffcc00;
+            --bg: #050505; --surface: #111; --border: #222; --font: 'Fira Code', monospace;
+        }
+
+        body {
+            background: var(--bg); color: var(--green); font-family: var(--font);
+            margin: 0; display: flex; flex-direction: column; height: 100vh; font-size: 13px;
+            overflow: hidden;
+        }
+
+        nav { background: #000; border-bottom: 1px solid var(--border); display: flex; flex-shrink: 0; }
+        .tab {
+            padding: 12px 20px; cursor: pointer; border-right: 1px solid var(--border);
+            color: #666; text-transform: uppercase; font-size: 11px; font-weight: bold;
+        }
+        .tab.active { color: var(--green); background: var(--surface); border-bottom: 2px solid var(--green); }
+
+        #status-bar {
+            background: #000; padding: 8px 20px; display: flex; 
+            justify-content: flex-end; border-bottom: 1px solid var(--border); font-size: 11px;
+        }
+        .stat { margin-left: 20px; border-right: 1px solid #222; padding-right: 20px; }
+        .stat span { color: white; }
+
+        .screen { display: none; flex-grow: 1; padding: 20px; overflow-y: auto; }
+        .screen.active { display: flex; flex-direction: column; }
+
+        .panel { background: var(--surface); padding: 20px; border: 1px solid var(--border); margin-bottom: 20px; border-radius: 4px; }
+        input, select, textarea {
+            background: #000; border: 1px solid var(--border); color: white;
+            padding: 10px; font-family: inherit; outline: none; margin-bottom: 10px; width: 100%; box-sizing: border-box;
+        }
+
+        .target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+        .target-card { 
+            background: var(--surface); border: 1px solid var(--border); 
+            padding: 15px; cursor: pointer; transition: 0.15s; position: relative;
+        }
+        .target-card:hover { border-color: var(--blue); background: #151515; }
+        .target-card.active-target { border-left: 5px solid var(--blue); background: #001a22; }
+
+        #terminal {
+            background: #000; flex-grow: 1; padding: 15px; border: 1px solid var(--border);
+            overflow-y: auto; color: var(--blue); display: flex; flex-direction: column;
+        }
+        .term-line { margin-bottom: 4px; line-height: 1.5; white-space: pre-wrap; }
+        .term-input-wrap { display: flex; align-items: center; width: 100%; margin-top: 5px; }
+        #term-prompt { white-space: nowrap; margin-right: 10px; color: var(--green); }
+        #term-input { 
+            background: transparent; border: none; color: white; flex-grow: 1; 
+            outline: none; font-size: 13px; font-family: inherit; padding: 0;
+        }
+
+        .btn {
+            background: transparent; border: 1px solid var(--green); color: var(--green);
+            padding: 10px 20px; cursor: pointer; text-transform: uppercase; font-size: 11px; width: fit-content;
+        }
+        .btn:hover { background: var(--green); color: #000; }
+
+        .progress-container { width: 100%; height: 2px; background: #222; margin: 10px 0; display: none; }
+        .progress-bar { height: 100%; width: 0%; background: var(--blue); }
+        
+        .difficulty { font-size: 9px; position: absolute; right: 10px; top: 10px; color: #555; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="tab active" data-target="targets">Network</div>
+    <div class="tab" data-target="search">OSINT</div>
+    <div class="tab" data-target="builder">Campaigns</div>
+    <div class="tab" data-target="phish">Delivery</div>
+    <div class="tab" data-target="terminal">Terminal</div>
+</nav>
+
+<div id="status-bar">
+    <div class="stat">OP_NAME: <span id="op-display">NONE</span></div>
+    <div class="stat">SESSION: <span id="cur-target">NONE</span></div>
+    <div class="stat">HEAT: <span id="cur-heat">0</span>%</div>
+    <div class="stat">XP: <span id="cur-points">0</span></div>
+</div>
+
+<div id="screen-targets" class="screen active">
+    <h3>Available Nodes</h3>
+    <div class="target-grid" id="target-list"></div>
+</div>
+
+<div id="screen-search" class="screen">
+    <div class="panel">
+        <h3>Public Records & Leaked Logs</h3>
+        <div style="display:flex; gap: 10px;">
+            <input type="text" id="search-input" placeholder="Search domains or keywords (Enter to scan)...">
+            <button class="btn" onclick="doSearch()">Scan</button>
+        </div>
+        <div id="search-results" style="margin-top: 20px;"></div>
+    </div>
+</div>
+
+<div id="screen-builder" class="screen">
+    <div class="panel">
+        <h3>Campaign Architect</h3>
+        <label>Operation Alias:</label>
+        <input type="text" id="op-name" placeholder="e.g. Operation Nightfall">
+        
+        <label>Email Blueprint:</label>
+        <select id="op-email">
+            <option value="invoice">Internal Accounting: Overdue Invoice</option>
+            <option value="security">IT Dept: Security Verification Required</option>
+            <option value="update">System: Firmware Update Available</option>
+        </select>
+
+        <label>Payload Type:</label>
+        <select id="op-payload">
+            <option value=".pdf">Malicious PDF (Best for Accounting)</option>
+            <option value=".bin">Firmware Binary (Best for Systems)</option>
+            <option value=".url">Phishing Link (Best for IT/Security)</option>
+        </select>
+
+        <label>Target Exploit (Integrated):</label>
+        <select id="op-exploit">
+            <option value="overdrive">Overdrive (RCE)</option>
+            <option value="backdoor">Backdoor (Persistence)</option>
+            <option value="overflow">Overflow (Memory Leak)</option>
+            <option value="tunnel">Tunnel (Network Bypass)</option>
+        </select>
+
+        <button class="btn" onclick="saveCampaign()">Initialize Campaign</button>
+    </div>
+</div>
+
+<div id="screen-phish" class="screen">
+    <div class="panel">
+        <h3>Payload Dispatch</h3>
+        <p>Active Campaign: <strong id="active-op-text" style="color:var(--yellow)">None</strong></p>
+        <label>Target Admin Email:</label>
+        <input type="text" id="phish-email" placeholder="admin@domain.com">
+        <button class="btn" onclick="sendPhish()">Dispatch Attack</button>
+        <div id="phish-status" style="margin-top: 20px;"></div>
+    </div>
+</div>
+
+<div id="screen-terminal" class="screen">
+    <div id="terminal">
+        <div id="term-output">
+            <div class="term-line" style="color:var(--green)">[SYSTEM] Ghost-Shell C2 Framework v5.0</div>
+            <div class="term-line">Type 'help' for commands. Foothold required.</div>
+        </div>
+        <div class="progress-container" id="global-progress"><div class="progress-bar" id="global-bar"></div></div>
+        <div class="term-input-wrap">
+            <span id="term-prompt">guest@ghostshell:~$</span>
+            <input type="text" id="term-input" spellcheck="false" autocomplete="off">
+        </div>
+    </div>
+</div>
+
+<script>
+    const EXPLOITS = {
+        "overdrive": "Remote Code Execution via Log Stack",
+        "backdoor": "SSH Key Injection via Systemd",
+        "overflow": "Heap Overflow via Buffer Leak",
+        "tunnel": "Traffic Interception via SQLi"
+    };
+
+    const LORE_SNIPPETS = [
+        "Internal Memo: Reminder to all staff, [ADMIN] is the only authorized contact for server issues.",
+        "Error Log 404: Request from [ADMIN] timed out on port 8080.",
+        "Public DNS Record: MX record points to smtp.mail.[DOMAIN]. Reported by [ADMIN].",
+        "Social Post: Just joined the team at [NAME]! My email is finally active: [ADMIN]@"
+    ];
+
+    let state = {
+        points: 0, heat: 0,
+        activeTarget: null,
+        activeCampaign: null,
+        compromised: {},
+        targets: [],
+        intel: [],
+        history: [],
+        historyIdx: -1,
+        looted: new Set()
+    };
+
+    window.onload = () => {
+        generateTargets();
+        initTabs();
+        initTerminal();
+        renderTargets();
+        updateUI();
+
+        document.getElementById('search-input').onkeydown = (e) => { if(e.key === 'Enter') doSearch(); };
+    };
+
+    function generateTargets() {
+        const names = ["Cortex", "Nova", "Apex", "Zenith", "Flux", "Titan", "Aether", "Omni"];
+        const suffixes = ["Industries", "Global", "Systems", "Logistics", "Energy", "Labs"];
+        
+        for (let i = 0; i < 12; i++) {
+            let n = names[Math.floor(Math.random()*names.length)] + " " + suffixes[Math.floor(Math.random()*suffixes.length)];
+            let dom = n.toLowerCase().replace(" ", "-") + ".com";
+            let adminNames = ["j.smith", "admin", "sys.op", "m.chen", "k.jones", "root", "it.support"];
+            let diff = Math.floor(i / 3) + 1; // Gradually harder
+            
+            state.targets.push({
+                id: i,
+                name: n,
+                domain: dom,
+                admin: adminNames[Math.floor(Math.random()*adminNames.length)],
+                diff: diff + (Math.random() > 0.7 ? 1 : 0),
+                emailType: ["invoice", "security", "update"][Math.floor(Math.random()*3)],
+                exploitType: ["overdrive", "backdoor", "overflow", "tunnel"][Math.floor(Math.random()*4)],
+                files: { "passwords.txt": 500 * diff, "network_map.pdf": 1000 * diff, "db_dump.sql": 2500 * diff }
+            });
+        }
+    }
+
+    function initTabs() {
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`screen-${tab.dataset.target}`).classList.add('active');
+                if (tab.dataset.target === 'terminal') document.getElementById('term-input').focus();
+            });
+        });
+    }
+
+    function renderTargets() {
+        const list = document.getElementById('target-list');
+        list.innerHTML = '';
+        state.targets.forEach(t => {
+            const acc = state.compromised[t.id]?.access || 'NONE';
+            const card = document.createElement('div');
+            card.className = `target-card ${state.activeTarget?.id === t.id ? 'active-target' : ''}`;
+            card.innerHTML = `
+                <div class="difficulty">LVL ${t.diff}</div>
+                <strong>${t.name}</strong><br><small style="color:#666">${t.domain}</small><br>
+                <div class="vuln-tag" style="border-color:${acc!=='NONE'?'var(--green)':'#333'}">ACCESS: ${acc}</div>
+            `;
+            card.onclick = () => { state.activeTarget = t; renderTargets(); updateUI(); };
+            list.appendChild(card);
+        });
+    }
+
+    function doSearch() {
+        const q = document.getElementById('search-input').value.toLowerCase();
+        const res = document.getElementById('search-results');
+        res.innerHTML = '';
+        if (!q) return;
+
+        let found = false;
+        state.targets.forEach(t => {
+            if (t.domain.includes(q) || t.name.toLowerCase().includes(q)) {
+                found = true;
+                let lore = LORE_SNIPPETS[Math.floor(Math.random()*LORE_SNIPPETS.length)]
+                    .replace("[ADMIN]", t.admin).replace("[DOMAIN]", t.domain).replace("[NAME]", t.name);
+                
+                res.innerHTML += `
+                    <div class="panel">
+                        <strong style="color:var(--blue)">Query Result: ${t.domain}</strong><br><br>
+                        <p style="color:#888; font-style:italic;">"${lore}"</p>
+                        <p style="font-size:10px; color:#444">Trace: Node_${t.id} established via external gateway.</p>
+                    </div>`;
+            }
+        });
+        if (!found) res.innerHTML = "<div class='panel'>No matching records in the global leak database.</div>";
+    }
+
+    function saveCampaign() {
+        const name = document.getElementById('op-name').value;
+        if (!name) { alert("Campaign needs a name!"); return; }
+        
+        state.activeCampaign = {
+            name: name,
+            email: document.getElementById('op-email').value,
+            payload: document.getElementById('op-payload').value,
+            exploit: document.getElementById('op-exploit').value
+        };
+
+        document.getElementById('op-display').innerText = name.toUpperCase();
+        document.getElementById('active-op-text').innerText = name;
+        alert("Campaign Initialized. Ready for delivery.");
+    }
+
+    function sendPhish() {
+        const email = document.getElementById('phish-email').value;
+        const status = document.getElementById('phish-status');
+
+        if (!state.activeTarget || !state.activeCampaign) {
+            status.innerHTML = "<span style='color:var(--red)'>Error: Select a target and build a campaign first.</span>";
+            return;
+        }
+
+        status.innerHTML = "Attempting payload delivery via " + state.activeCampaign.payload + "...";
+        
+        setTimeout(() => {
+            const correctEmail = `${state.activeTarget.admin}@${state.activeTarget.domain}`;
+            if (email === correctEmail && state.activeCampaign.email === state.activeTarget.emailType) {
+                status.innerHTML = `<span style='color:var(--green)'>[SUCCESS] Admin clicked payload. Remote shell established.</span>`;
+                state.compromised[state.activeTarget.id] = { access: 'USER', exploit: state.activeTarget.exploitType };
+                renderTargets(); updateUI();
+            } else {
+                status.innerHTML = `<span style='color:var(--red)'>[FAILED] Payload filtered or ignored. Heat rising.</span>`;
+                state.heat += 20; updateUI();
+            }
+        }, 1500);
+    }
+
+    function initTerminal() {
+        const input = document.getElementById('term-input');
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') runCmd();
+            else if (e.key === 'Tab') { e.preventDefault(); } // Add autocomplete logic here if wanted
+        };
+    }
+
+    function runCmd() {
+        const input = document.getElementById('term-input');
+        const cmd = input.value.trim();
+        if (!cmd) return;
+        input.value = '';
+        const args = cmd.toLowerCase().split(' ');
+        logTerm(`${document.getElementById('term-prompt').innerText} ${cmd}`, 'white');
+
+        switch(args[0]) {
+            case 'help': logTerm("Commands: ls, whoami, vulns, exploit --type [name], cat [file], targets, clear, status"); break;
+            case 'targets': state.targets.forEach(t => logTerm(`${t.name} (LVL ${t.diff}) - Access: ${state.compromised[t.id]?.access || 'NONE'}`)); break;
+            case 'vulns': for(let k in EXPLOITS) logTerm(`${k.padEnd(10)} : ${EXPLOITS[k]}`); break;
+            case 'whoami': logTerm(state.activeTarget ? (state.compromised[state.activeTarget.id]?.access || 'guest') : 'guest'); break;
+            case 'ls':
+                if (hasAccess('USER')) {
+                    logTerm(`Directory: /home/${state.activeTarget.admin}/docs`, "white");
+                    for (let f in state.activeTarget.files) logTerm("- " + f);
+                }
+                break;
+            case 'cat':
+                handleCat(args[1]);
+                break;
+            case 'exploit': handleExploit(args); break;
+            case 'status': logTerm(`EXP: ${state.points} | HEAT: ${state.heat}%`); break;
+            case 'clear': document.getElementById('term-output').innerHTML = ''; break;
+            default: logTerm("Unknown command.", "var(--red)");
+        }
+    }
+
+    function handleCat(file) {
+        if (!hasAccess('USER')) return;
+        if (!file || !state.activeTarget.files[file]) { logTerm("File not found.", "var(--red)"); return; }
+        
+        const key = `${state.activeTarget.id}_${file}`;
+        if (!state.looted.has(key)) {
+            const val = state.activeTarget.files[file];
+            state.points += val;
+            state.looted.add(key);
+            logTerm(`[LOOT] +${val} XP recovered from ${file}`, "var(--green)");
+        }
+        logTerm("--- DATA STREAM START ---\n" + btoa(Math.random().toString()).substring(0, 64) + "\n--- DATA STREAM END ---");
+        updateUI();
+    }
+
+    function handleExploit(args) {
+        if (!hasAccess('USER')) return;
+        const typeIdx = args.indexOf('--type');
+        const choice = args[typeIdx + 1];
+
+        if (!choice) {
+            logTerm("Syntax Error: Missing type.", "var(--red)");
+            logTerm("Usage: exploit --type [name]", "var(--yellow)");
+            return;
+        }
+
+        if (!EXPLOITS[choice]) {
+            logTerm(`Vulnerability '${choice}' not found.`, "var(--red)");
+            logTerm("Hint: Use 'vulns' to list available exploit modules.", "var(--yellow)");
+            return;
+        }
+
+        if (choice === state.activeTarget.exploitType && state.activeCampaign.exploit === choice) {
+            logTerm(`Running module: ${choice}...`);
+            showProgress(3000, () => {
+                logTerm("SUCCESS: Root access achieved.", "var(--green)");
+                state.compromised[state.activeTarget.id].access = "ROOT";
+                state.points += (state.activeTarget.diff * 1000);
+                renderTargets(); updateUI();
+            });
+        } else {
+            logTerm("Exploit failed: Target patched or mismatch.", "var(--red)");
+            state.heat += 15;
+        }
+    }
+
+    function hasAccess(lvl) {
+        if (!state.activeTarget) { logTerm("Select a target first.", "var(--red)"); return false; }
+        const cur = state.compromised[state.activeTarget.id]?.access || 'NONE';
+        if (lvl === 'USER' && cur === 'NONE') { logTerm("No foothold detected.", "var(--red)"); return false; }
+        return true;
+    }
+
+    function logTerm(msg, color = 'var(--blue)') {
+        const out = document.getElementById('term-output');
+        const div = document.createElement('div');
+        div.className = 'term-line';
+        div.style.color = color;
+        div.innerText = "> " + msg;
+        out.appendChild(div);
+        document.getElementById('terminal').scrollTop = document.getElementById('terminal').scrollHeight;
+    }
+
+    function showProgress(time, cb) {
+        const bar = document.getElementById('global-bar');
+        const cont = document.getElementById('global-progress');
+        cont.style.display = 'block';
+        let w = 0;
+        const int = setInterval(() => {
+            w += 10; bar.style.width = w + "%";
+            if (w >= 100) { clearInterval(int); cont.style.display = 'none'; bar.style.width = "0%"; cb(); }
+        }, time / 10);
+    }
+
+    function updateUI() {
+        document.getElementById('cur-points').innerText = state.points;
+        document.getElementById('cur-heat').innerText = state.heat;
+        if (state.activeTarget) {
+            const acc = state.compromised[state.activeTarget.id]?.access || 'ANON';
+            document.getElementById('cur-target').innerText = state.activeTarget.name;
+            document.getElementById('term-prompt').innerText = `${acc.toLowerCase()}@${state.activeTarget.domain}:~$ `;
+        }
+        if (state.heat >= 100) { alert("HEAT TOO HIGH: Proxy chain compromised. Game Over."); location.reload(); }
+    }
+</script>
+</body>
+</html>

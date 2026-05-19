@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gauntlet: Survival Mode</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Arial Black', sans-serif; }
+        canvas { display: block; cursor: crosshair; }
+        
+        #hud-container { 
+            position: absolute;
+            left: calc(50% - 225px - 140px); 
+            top: 50%;
+            transform: translateY(-50%);
+            width: 130px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 400px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.9); color: white; z-index: 10; text-align: center; }
+        .v-bar-group { display: flex; flex-direction: column; align-items: center; height: 100%; width: 55px; }
+        .v-bar-bg { width: 35px; height: 300px; background: rgba(0, 0, 0, 0.6); border: 3px solid #444; border-radius: 6px; overflow: hidden; display: flex; }
+
+        #progress-container { flex-direction: column-reverse; }
+        #progress-fill { width: 100%; height: 0%; background: #3498db; transition: height 0.1s; }
+
+        #timer-container { flex-direction: column; }
+        #timer-fill { width: 100%; height: 100%; background: #2ecc71; transition: background 0.3s; }
+        
+        .v-label { font-size: 14px; text-transform: uppercase; color: #aaa; margin-bottom: 8px; }
+        .cp-display { color: #3498db; font-size: 36px; margin-bottom: 5px; }
+        #dist-tracker { position: absolute; top: -60px; left: 0; width: 100%; text-align: center; color: white; }
+
+        button { padding: 15px 30px; font-size: 20px; cursor: pointer; background: #3498db; border: none; color: white; border-radius: 8px; margin: 10px; font-family: inherit; transition: 0.2s; }
+        button:hover { background: #2980b9; transform: scale(1.05); }
+        .revive-btn { background: #9b59b6; }
+
+        #revived-status { position: fixed; top: 20px; right: 20px; color: #e74c3c; font-size: 14px; display: none; }
+        
+        @keyframes flash { 0% { background: #e74c3c; } 50% { background: #ff7675; } 100% { background: #e74c3c; } }
+        .urgent-fill { animation: flash 0.2s infinite; }
+    </style>
+</head>
+<body>
+
+<div id="revived-status">PRACTICE MODE (SCORE DISABLED)</div>
+
+<div id="ui-start" class="overlay">
+    <h1 style="font-size: 60px; margin-bottom: 10px;">GAUNTLET</h1>
+    <p style="font-size: 18px; color: #3498db;">SURVIVE THE CROWD</p>
+    <button onclick="initGame()">START RUN</button>
+</div>
+
+<div id="ui-death" class="overlay" style="display:none">
+    <h1 id="death-reason" style="color: #e74c3c; font-size: 50px; margin-bottom: 5px;">CAUGHT</h1>
+    <div id="stats-summary" style="margin-bottom: 20px;">
+        <div style="font-size: 18px; color: #aaa;">GATE</div>
+        <div id="death-gate" style="font-size: 60px; color: #3498db;">0</div>
+    </div>
+    <div style="display: flex; flex-direction: column;">
+        <button class="revive-btn" onclick="revivePlayer()">REVIVE & CONTINUE</button>
+        <button onclick="initGame()">RESTART FRESH</button>
+    </div>
+</div>
+
+<div id="hud-container">
+    <div id="dist-tracker">
+        <div style="font-size: 12px; color: #aaa;">METERS</div>
+        <div id="dist" style="font-size: 28px;">0</div>
+    </div>
+    <div class="v-bar-group">
+        <div class="v-label">GATE</div>
+        <div id="cp-count" class="cp-display">0</div>
+        <div id="progress-container" class="v-bar-bg"><div id="progress-fill"></div></div>
+    </div>
+    <div class="v-bar-group">
+        <div class="v-label">TIME</div>
+        <div id="timer-val" class="cp-display" style="color:#2ecc71">!</div>
+        <div id="timer-container" class="v-bar-bg"><div id="timer-fill"></div></div>
+    </div>
+</div>
+
+<canvas id="g"></canvas>
+
+<script>
+    // --- SCALABLE TUNING PARAMS ---
+    const BALANCING = {
+        PLAYER_SPEED: 12.5,
+        PLAYER_RADIUS: 13,
+        MOUSE_SMOOTHING: 140,
+        HALL_WIDTH: 450,
+        CAMERA_TRACKING_BIAS: 0.82,
+        
+        // Timer Scaling (Time increases with distance)
+        TIME_PER_100_METERS: 15, // Seconds granted per 100m of hallway
+        BASE_TIME_BUFFER: 10,       // Extra "leeway" seconds per level
+        
+        // Distance Scaling
+        STARTING_DIST: 1200,      
+        DIST_ADD_PER_CP: 300,      // Levels get longer
+        DIST_MAX_CAP: 6000,        // Max hallway length capwho
+        
+        // NPC Chaos (The real challenge)
+        NPC_BASE_SPEED: 1.9,
+        NPC_SPEED_VAR: 2.2,
+        NPC_SPAWN_CHANCE_START: 0.08,
+        NPC_SPAWN_CHANCE_MAX: 0.45, // Heavy swarm at high levels
+        NPC_DENSITY_SCALE: 0.025    // Steep increase in NPCs per level
+    };
+
+    const canvas = document.getElementById('g');
+    const ctx = canvas.getContext('2d');
+    
+    let state = {
+        active: false,
+        score: 0,
+        isRevived: false,
+        checkpoints: 0,
+        player: { x: 0, y: 0 },
+        npcs: [],
+        camY: 0,
+        mouse: { x: 0, y: 0 },
+        timeLeft: 0,
+        maxTime: 0,
+        currentCheckpointGoal: 0,
+        lastCheckpointY: 0,
+        nextCheckpointY: 0
+    };
+
+    function calculateLevelTime(distance) {
+        const meters = distance / 60;
+        return (meters / 100 * BALANCING.TIME_PER_100_METERS) + BALANCING.BASE_TIME_BUFFER;
+    }
+
+    function initGame() {
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        document.getElementById('revived-status').style.display = 'none';
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        state.active = true;
+        state.score = 0;
+        state.isRevived = false;
+        state.checkpoints = 0;
+        state.camY = 0;
+        state.player = { x: canvas.width / 2, y: canvas.height - 100 };
+        state.npcs = [];
+        state.lastCheckpointY = state.player.y;
+        state.currentCheckpointGoal = BALANCING.STARTING_DIST;
+        state.nextCheckpointY = state.player.y - state.currentCheckpointGoal;
+        
+        state.maxTime = calculateLevelTime(state.currentCheckpointGoal);
+        state.timeLeft = state.maxTime;
+        
+        updateHUD();
+        requestAnimationFrame(loop);
+    }
+
+    function revivePlayer() {
+        document.getElementById('ui-death').style.display = 'none';
+        document.getElementById('revived-status').style.display = 'block';
+        state.active = true;
+        state.isRevived = true;
+        state.score = 0;
+        state.timeLeft = state.maxTime; 
+        state.npcs = []; 
+        requestAnimationFrame(loop);
+    }
+
+    function spawnNPC() {
+        const xMin = (canvas.width/2) - (BALANCING.HALL_WIDTH/2);
+        state.npcs.push({
+            x: xMin + Math.random() * BALANCING.HALL_WIDTH,
+            y: state.camY - 200,
+            vx: (Math.random() - 0.5) * 3,
+            vy: BALANCING.NPC_BASE_SPEED + Math.random() * BALANCING.NPC_SPEED_VAR,
+            r: 12
+        });
+    }
+
+    window.addEventListener('mousemove', e => {
+        state.mouse.x = e.clientX;
+        state.mouse.y = e.clientY;
+    });
+
+    function showDeathScreen(reason) {
+        state.active = false;
+        document.getElementById('ui-death').style.display = 'flex';
+        document.getElementById('death-reason').innerText = reason;
+        document.getElementById('death-gate').innerText = state.checkpoints;
+    }
+
+    function updateHUD() {
+        document.getElementById('cp-count').innerText = state.checkpoints;
+        document.getElementById('dist').innerText = state.score;
+    }
+
+    function loop() {
+        if(!state.active) return;
+
+        state.timeLeft -= 1/60;
+        const timerFill = document.getElementById('timer-fill');
+        const timePerc = (state.timeLeft / state.maxTime) * 100;
+        
+        timerFill.style.height = Math.max(0, timePerc) + "%";
+        document.getElementById('timer-val').innerText = Math.ceil(state.timeLeft);
+        
+        if(state.timeLeft < 4) {
+            timerFill.classList.add('urgent-fill');
+            document.getElementById('timer-val').style.color = "#e74c3c";
+        } else {
+            timerFill.classList.remove('urgent-fill');
+            timerFill.style.background = "#2ecc71";
+            document.getElementById('timer-val').style.color = "#2ecc71";
+        }
+
+        if(state.timeLeft <= 0) return showDeathScreen("OUT OF TIME");
+
+        // Movement
+        const dx = state.mouse.x - state.player.x;
+        const dy = state.mouse.y - (state.player.y - state.camY);
+        const distToMouse = Math.sqrt(dx * dx + dy * dy);
+
+        if (distToMouse > 2) {
+            const speedMult = Math.min(distToMouse / BALANCING.MOUSE_SMOOTHING, 1);
+            state.player.x += (dx / distToMouse) * (BALANCING.PLAYER_SPEED * speedMult);
+            state.player.y += (dy / distToMouse) * (BALANCING.PLAYER_SPEED * speedMult);
+        }
+
+        // Checkpoint Logic (Time Scales with Distance)
+        if(state.player.y < state.nextCheckpointY) {
+            state.checkpoints++;
+            state.lastCheckpointY = state.nextCheckpointY;
+            state.currentCheckpointGoal = Math.min(BALANCING.DIST_MAX_CAP, state.currentCheckpointGoal + BALANCING.DIST_ADD_PER_CP);
+            state.nextCheckpointY -= state.currentCheckpointGoal;
+            
+            // TIME SCALES UP based on the new distance
+            state.maxTime = calculateLevelTime(state.currentCheckpointGoal);
+            state.timeLeft = state.maxTime;
+            updateHUD();
+        }
+
+        const progress = Math.min(100, Math.max(0, ((state.lastCheckpointY - state.player.y) / state.currentCheckpointGoal) * 100));
+        document.getElementById('progress-fill').style.height = progress + "%";
+
+        const leftWall = (canvas.width/2) - (BALANCING.HALL_WIDTH/2);
+        const rightWall = (canvas.width/2) + (BALANCING.HALL_WIDTH/2);
+        state.player.x = Math.max(leftWall + BALANCING.PLAYER_RADIUS, Math.min(rightWall - BALANCING.PLAYER_RADIUS, state.player.x));
+
+        const camThreshold = canvas.height * BALANCING.CAMERA_TRACKING_BIAS;
+        if(state.player.y < state.camY + camThreshold) state.camY = state.player.y - camThreshold;
+
+        // Challenge Logic (NPC Crowds)
+        const currentSpawnProb = BALANCING.NPC_SPAWN_CHANCE_START + (state.checkpoints * BALANCING.NPC_DENSITY_SCALE);
+        if(Math.random() < Math.min(BALANCING.NPC_SPAWN_CHANCE_MAX, currentSpawnProb)) spawnNPC();
+
+        state.npcs.forEach((n, index) => {
+            n.x += n.vx; n.y += n.vy;
+            if(n.x < leftWall + n.r || n.x > rightWall - n.r) n.vx *= -1;
+            if(Math.hypot(state.player.x - n.x, state.player.y - n.y) < (BALANCING.PLAYER_RADIUS + n.r) * 0.85) {
+                showDeathScreen("COLLIDED");
+            }
+            if(n.y > state.camY + canvas.height + 150) state.npcs.splice(index, 1);
+        });
+
+        if(!state.isRevived) {
+            state.score = Math.floor(Math.abs(state.player.y - (canvas.height - 100)) / 60);
+            document.getElementById('dist').innerText = state.score;
+        }
+
+        draw(leftWall, rightWall);
+        requestAnimationFrame(loop);
+    }
+
+    function draw(leftWall, rightWall) {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(0, -state.camY);
+        
+        ctx.fillStyle = '#fefefe';
+        ctx.fillRect(leftWall, state.camY - 200, BALANCING.HALL_WIDTH, canvas.height + 400);
+
+        ctx.strokeStyle = '#eee';
+        ctx.lineWidth = 1;
+        for(let i = Math.floor(state.camY/120)*120; i < state.camY + canvas.height + 120; i+=120) {
+            ctx.beginPath(); ctx.moveTo(leftWall, i); ctx.lineTo(rightWall, i); ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#3498db';
+        ctx.lineWidth = 30;
+        ctx.beginPath(); ctx.moveTo(leftWall, state.nextCheckpointY); ctx.lineTo(rightWall, state.nextCheckpointY); ctx.stroke();
+
+        ctx.fillStyle = '#e74c3c';
+        state.npcs.forEach(n => { ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2); ctx.fill(); });
+
+        ctx.fillStyle = '#3498db';
+        ctx.shadowBlur = 15; ctx.shadowColor = '#3498db';
+        ctx.beginPath(); ctx.arc(state.player.x, state.player.y, BALANCING.PLAYER_RADIUS, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+</script>
+</body>
+</html>

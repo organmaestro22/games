@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hallway Hustle</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; font-family: sans-serif; }
+        canvas { display: block; cursor: crosshair; }
+        #hud { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; }
+        .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.8); color: white; z-index: 10; }
+        button { padding: 15px 30px; font-size: 20px; cursor: pointer; background: #3498db; border: none; color: white; border-radius: 5px; margin-top: 20px; }
+        .stat-box { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="ui-start" class="overlay">
+    <h1>HALLWAY HUSTLE</h1>
+    <p>Move mouse away from player to gain speed</p>
+    <button onclick="initGame()">START</button>
+</div>
+
+<div id="ui-over" class="overlay" style="display:none">
+    <h1>GAME OVER</h1>
+    <p id="final-score">Score: 0</p>
+    <button onclick="initGame()">RETRY</button>
+</div>
+
+<div id="hud">
+    <div class="stat-box" style="font-size: 24px;">Distance: <span id="dist">0</span>m</div>
+    <div style="font-size: 14px; color: #aaa;">NPCs: <span id="npc-count">0</span></div>
+</div>
+
+<canvas id="g"></canvas>
+
+<script>
+    const canvas = document.getElementById('g');
+    const ctx = canvas.getContext('2d');
+    
+    const CONFIG = {
+        MOUSE_SENSITIVITY: 160, // Slightly higher for smoother control
+        PLAYER_MAX_SPEED: 10,   // Slightly slower for better control
+        PLAYER_RADIUS: 14,
+        HALL_WIDTH: 450,        // Wider hallway for ease
+        SAFE_START_ZONE: 500    // Distance (px) with no NPCs at start
+    };
+
+    let state = {
+        active: false,
+        score: 0,
+        player: { x: 0, y: 0 },
+        npcs: [],
+        camY: 0,
+        mouse: { x: 0, y: 0 }
+    };
+
+    function initGame() {
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        state.active = true;
+        state.score = 0;
+        state.camY = 0;
+        state.player = { x: canvas.width/2, y: canvas.height - 100 };
+        state.npcs = [];
+        
+        // Spawn initial NPCs, but keep them outside the safe start zone
+        for(let i=0; i<8; i++) {
+            spawnNPC(Math.random() * -1000 - CONFIG.SAFE_START_ZONE);
+        }
+        
+        requestAnimationFrame(loop);
+    }
+
+    function spawnNPC(specificY = null) {
+        const xMin = (canvas.width/2) - (CONFIG.HALL_WIDTH/2);
+        state.npcs.push({
+            x: xMin + Math.random() * CONFIG.HALL_WIDTH,
+            y: specificY !== null ? specificY : state.camY - 200,
+            vx: (Math.random() - 0.5) * 3.5, // Reduced lateral speed
+            vy: 1.2 + Math.random() * 1.5,   // Reduced forward speed
+            r: 11                            // Smaller hitboxes
+        });
+    }
+
+    window.addEventListener('mousemove', e => {
+        state.mouse.x = e.clientX;
+        state.mouse.y = e.clientY;
+    });
+
+    function loop() {
+        if(!state.active) return;
+
+        // --- PROPORTIONAL MOUSE MOVEMENT ---
+        const screenX = state.player.x;
+        const screenY = state.player.y - state.camY;
+        
+        const dx = state.mouse.x - screenX;
+        const dy = state.mouse.y - screenY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 2) {
+            const speedMult = Math.min(dist / CONFIG.MOUSE_SENSITIVITY, 1);
+            const currentSpeed = CONFIG.PLAYER_MAX_SPEED * speedMult;
+            
+            state.player.x += (dx / dist) * currentSpeed;
+            state.player.y += (dy / dist) * currentSpeed;
+        }
+
+        // --- BOUNDARIES ---
+        const leftWall = (canvas.width/2) - (CONFIG.HALL_WIDTH/2);
+        const rightWall = (canvas.width/2) + (CONFIG.HALL_WIDTH/2);
+
+        if(state.player.x < leftWall + CONFIG.PLAYER_RADIUS) state.player.x = leftWall + CONFIG.PLAYER_RADIUS;
+        if(state.player.x > rightWall - CONFIG.PLAYER_RADIUS) state.player.x = rightWall - CONFIG.PLAYER_RADIUS;
+
+        if(state.player.y < state.camY + canvas.height * 0.5) {
+            state.camY = state.player.y - canvas.height * 0.5;
+        }
+
+        if(state.player.y > state.camY + canvas.height - CONFIG.PLAYER_RADIUS) {
+            state.player.y = state.camY + canvas.height - CONFIG.PLAYER_RADIUS;
+        }
+
+        // --- NPC SPAWNING ---
+        // Slower ramp-up for difficulty
+        const spawnProb = 0.04 + (state.score / 8000);
+        if(Math.random() < spawnProb) spawnNPC();
+
+        state.npcs.forEach((n, index) => {
+            n.x += n.vx;
+            n.y += n.vy;
+
+            if(n.x < leftWall + n.r || n.x > rightWall - n.r) n.vx *= -1;
+
+            const d = Math.hypot(state.player.x - n.x, state.player.y - n.y);
+            // More forgiving collision (using 0.8 to shrink hitboxes slightly)
+            if(d < (CONFIG.PLAYER_RADIUS + n.r) * 0.85) {
+                state.active = false;
+                document.getElementById('ui-over').style.display = 'flex';
+                document.getElementById('final-score').innerText = "Score: " + state.score + "m";
+            }
+
+            if(n.y > state.camY + canvas.height + 150) state.npcs.splice(index, 1);
+        });
+
+        state.score = Math.floor(Math.abs(state.player.y - (canvas.height - 100)) / 60);
+
+        document.getElementById('dist').innerText = state.score;
+        document.getElementById('npc-count').innerText = state.npcs.length;
+
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    function draw() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Sensitivity UI
+        if (state.active) {
+            ctx.strokeStyle = 'rgba(52, 152, 219, 0.15)';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.arc(state.player.x, state.player.y - state.camY, CONFIG.MOUSE_SENSITIVITY, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        ctx.save();
+        ctx.translate(0, -state.camY);
+
+        const leftWall = (canvas.width/2) - (CONFIG.HALL_WIDTH/2);
+        
+        // Floor
+        ctx.fillStyle = '#fdfdfd';
+        ctx.fillRect(leftWall, state.camY - 200, CONFIG.HALL_WIDTH, canvas.height + 400);
+
+        // Grid
+        ctx.strokeStyle = '#eeeeee';
+        ctx.lineWidth = 1;
+        for(let i = Math.floor(state.camY/100)*100; i < state.camY + canvas.height + 100; i+=100) {
+            ctx.beginPath();
+            ctx.moveTo(leftWall, i);
+            ctx.lineTo(leftWall + CONFIG.HALL_WIDTH, i);
+            ctx.stroke();
+        }
+
+        // NPC Draw
+        ctx.fillStyle = '#e74c3c';
+        state.npcs.forEach(n => {
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        // Player Draw
+        ctx.fillStyle = '#3498db';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#3498db';
+        ctx.beginPath();
+        ctx.arc(state.player.x, state.player.y, CONFIG.PLAYER_RADIUS, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+    }
+</script>
+</body>
+</html>

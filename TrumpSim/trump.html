@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Paperclips: Global Supremacy Engine</title>
+    <style>
+        :root {
+            --gold: #D4AF37;
+            --dark-blue: #0A192F;
+            --gop-red: #E0115F;
+            --panel-bg: rgba(10, 25, 47, 0.95);
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --twitter-blue: #1DA1F2;
+            --china-red: #DE2910;
+            --russia-blue: #0033A0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #020611;
+            background-image: radial-gradient(circle at 50% 50%, #07162c 0%, #020611 100%);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        #welcome-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(2, 6, 17, 0.98);
+            z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+            padding: 20px; box-sizing: border-box;
+        }
+
+        .welcome-card {
+            max-width: 650px;
+            background: var(--dark-blue);
+            border: 4px dashed var(--gold);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(212, 175, 55, 0.3);
+        }
+
+        .welcome-card h1 {
+            color: var(--gold);
+            font-size: 2.6rem;
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, var(--gop-red), #b3003b);
+            color: white;
+            border: 2px solid var(--gold);
+            padding: 16px 45px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px var(--gold);
+        }
+
+        .game-container {
+            max-width: 1400px;
+            width: 100%;
+            background: var(--panel-bg);
+            border: 3px solid var(--gold);
+            border-radius: 14px;
+            padding: 30px;
+            box-shadow: 0 0 40px rgba(212, 175, 55, 0.15);
+            display: none;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 3px double var(--gold);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .scoreboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .score-card {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(212,175,55,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .score-label { font-size: 0.85rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 1.5px; }
+        .score-value { font-size: 1.8rem; font-weight: bold; color: #fff; margin-top: 5px; font-family: monospace; }
+        #debt-val { color: #fc8181; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 1100px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 22px;
+            margin-bottom: 25px;
+            display: none; 
+        }
+
+        .panel.visible { display: block; animation: unfold 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        @keyframes unfold {
+            from { opacity: 0; transform: scale(0.98) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            color: var(--gold);
+            font-size: 1.25rem;
+            border-bottom: 1px solid rgba(212,175,55,0.2);
+            padding-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tweet-widget {
+            background: #111a24;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #24313c;
+        }
+
+        .tweet-btn {
+            background: linear-gradient(135deg, var(--twitter-blue), #0b7cb5);
+            color: white;
+            border: none;
+            padding: 16px;
+            font-size: 1.15rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(29, 161, 242, 0.2);
+            transition: transform 0.1s;
+        }
+        .tweet-btn:active { transform: scale(0.98); }
+
+        .unlock-hint {
+            font-size: 0.85rem;
+            color: #718096;
+            text-align: center;
+            margin-top: 12px;
+            font-style: italic;
+        }
+
+        .cabinet-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .active-staff-banner {
+            background: rgba(212, 175, 55, 0.08);
+            border: 1px solid var(--gold);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .candidate-market {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .candidate-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed rgba(212,175,55,0.4);
+            padding: 14px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .candidate-name { font-weight: bold; color: #fff; font-size: 0.95rem; }
+        .candidate-stats { font-size: 0.8rem; color: #cbd5e0; margin: 8px 0; line-height: 1.4; }
+
+        .item-list { display: grid; gap: 12px; }
+        
+        .upgrade-card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 15px;
+        }
+        .upgrade-card.one-time { border-left: 4px solid #6366f1; }
+        .upgrade-card.repeatable { border-left: 4px solid var(--gold); }
+        .upgrade-card.tariff { border-left: 4px solid var(--china-red); }
+
+        .buy-btn {
+            background: var(--gold);
+            color: #000;
+            border: none;
+            padding: 10px 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        .buy-btn:disabled { background: #2d3748; color: #4a5568; cursor: not-allowed; }
+
+        .stat-group { margin-bottom: 18px; }
+        .stat-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; font-weight: 500; }
+        .progress-bar { background: #111622; border-radius: 8px; overflow: hidden; height: 18px; border: 1px solid #2d3748; }
+        .progress-fill { height: 100%; width: 0%; transition: width 0.3s cubic-bezier(0.1, 0.8, 0.2, 1); }
+
+        .event-box {
+            background: linear-gradient(135deg, #090f1d, #131c2e);
+            border: 2px solid var(--gold);
+            padding: 22px;
+            border-radius: 10px;
+            min-height: 160px;
+        }
+        .event-title { color: var(--gold); margin-top: 0; font-size: 1.15rem; text-transform: uppercase; }
+        .event-desc { font-style: italic; color: #e2e8f0; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.5; }
+        .option-btn {
+            background: #1e293b; color: white; border: 1px solid #334155;
+            padding: 12px 18px; margin: 8px 0; border-radius: 8px;
+            cursor: pointer; width: 100%; text-align: left; font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .option-btn:hover { background: #334155; border-color: var(--gold); }
+
+        .log-box {
+            background: #020205;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 12px; height: 130px; overflow-y: auto;
+            border-radius: 6px; color: #39ff14; font-size: 0.8rem;
+            margin-top: 20px; border: 1px solid #111827; line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="welcome-screen">
+        <div class="welcome-card">
+            <h1>Executive Paperclips</h1>
+            <h3>Global Supremacy Engine</h3>
+            <p>The matrix has mutated. International actors are actively analyzing your direct communications infrastructure. Appoint staff, deploy trade barriers, and manage geopolitical panic vectors before your operational administration is forcefully compromised.</p>
+            <button class="start-btn" onclick="initializeSimulation()">Initialize Core</button>
+        </div>
+    </div>
+
+    <div class="game-container" id="main-ui">
+        <header>
+            <h1>The Executive Command Interface</h1>
+            <div class="scoreboard-grid">
+                <div class="score-card">
+                    <div class="score-label">Accumulated Executive Clout</div>
+                    <div class="score-value" id="clout-val">0</div>
+                </div>
+                <div class="score-card">
+                    <div class="score-label">System Generation Rate</div>
+                    <div class="score-value" id="rate-val">+1/sec</div>
+                </div>
+                <div class="score-card">
+                    <div class="score-label">National Debt Accumulator</div>
+                    <div class="score-value" id="debt-val">$35,124,583,921,442</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Left Column: Operations & Widgets -->
+            <div>
+                <!-- Widget 1: The Phone -->
+                <div class="panel visible" id="widget-phone">
+                    <h2>Communications Device</h2>
+                    <div class="tweet-widget">
+                        <button class="tweet-btn" onclick="fireWeightedTweet()">📝 Post Live Caps-Lock Tweet</button>
+                        <div class="unlock-hint" id="unlock-hint-text">Awaiting system milestones...</div>
+                    </div>
+                </div>
+
+                <!-- Widget 2: Cabinet Room Marketplace -->
+                <div class="panel visible" id="widget-cabinet">
+                    <h2>West Wing Cabinet Vetting</h2>
+                    <div class="cabinet-container">
+                        <div class="active-staff-banner" id="active-staff-root">
+                            <strong>Active Staff:</strong> None (System idle)
+                        </div>
+                        <div class="candidate-market" id="candidate-market-root">
+                            <!-- Populated with 3 candidates dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Widget 3: Administrative Upgrades -->
+                <div class="panel" id="widget-upgrades">
+                    <h2>Administrative Programs</h2>
+                    <div class="item-list" id="upgrades-root"></div>
+                </div>
+
+                <!-- Widget 4: Tariff War Room -->
+                <div class="panel" id="widget-tariffs">
+                    <h2>Tariff War Room</h2>
+                    <div class="item-list" id="tariffs-root"></div>
+                </div>
+
+                <!-- Widget 5: Asset Portfolio Grid -->
+                <div class="panel" id="widget-assets">
+                    <h2>Global Sovereign Asset Matrix</h2>
+                    <div class="item-list" id="assets-root"></div>
+                </div>
+            </div>
+
+            <!-- Right Column: Geopolitical Telemetry & Logs -->
+            <div>
+                <div class="panel visible" id="widget-telemetry">
+                    <h2>Geopolitical Telemetry</h2>
+                    
+                    <div class="stat-group">
+                        <div class="stat-label"><span>Base Voter Loyalty</span><span id="loyalty-txt">50%</span></div>
+                        <div class="progress-bar"><div id="loyalty-bar" class="progress-fill" style="background-color: #28a745;"></div></div>
+                    </div>
+
+                    <div class="stat-group">
+                        <div class="stat-label"><span>Establishment Panic (D.C. Friction)</span><span id="panic-txt">15%</span></div>
+                        <div class="progress-bar"><div id="panic-bar" class="progress-fill" style="background-color: #dc3545;"></div></div>
+                    </div>
+
+                    <div class="stat-group">
+                        <div class="stat-label"><span>China Geopolitical Friction</span><span id="china-txt">10%</span></div>
+                        <div class="progress-bar"><div id="china-bar" class="progress-fill" style="background-color: var(--china-red);"></div></div>
+                    </div>
+
+                    <div class="stat-group">
+                        <div class="stat-label"><span>Russia Geopolitical Friction</span><span id="russia-txt">10%</span></div>
+                        <div class="progress-bar"><div id="russia-bar" class="progress-fill" style="background-color: var(--russia-blue);"></div></div>
+                    </div>
+                </div>
+
+                <!-- Threat Matrix Module -->
+                <div class="event-box" id="event-box">
+                    <h3 class="event-title">Threat Matrix: Scanning</h3>
+                    <p class="event-desc">No immediate crises detected within the current geopolitical horizon.</p>
+                </div>
+
+                <!-- Live Feed Console -->
+                <div class="log-box" id="log-box">[System Feed]: Encryption connection established. Systems safe.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Core Simulation State Engine
+        let state = {
+            clout: 0,
+            lifetimeClout: 0,
+            baseCloutRate: 0,
+            tariffMultiplier: 1.0,
+            loyalty: 50,
+            panic: 15,
+            chinaFriction: 10,
+            russiaFriction: 10,
+            nationalDebt: 35712493011400,
+            
+            activeStaff: { name: "Loyal Intern", rate: 1, type: "Intern" },
+            marketCandidates: [],
+            milestones: { upgrades: false, tariffs: false, assets: false }
+        };
+
+        // Complete Upgraded Tweet Phrase Engine Structure
+        const tweetSubjects = [
+            { text: "THE FAKE NEWS MEDIA", loyalty: 3, panic: 2, china: 0, russia: -1 },
+            { text: "BEIJING CURRENCY MANIPULATORS", loyalty: 5, panic: -1, china: 6, russia: 0 },
+            { text: "RADICAL LEFT DEMOCRATS", loyalty: 4, panic: 3, china: -1, russia: -2 },
+            { text: "MOSCOW CYBER INTEL", loyalty: 2, panic: 2, china: -1, russia: 5 },
+            { text: "THE MAGNIFICENT SPACE FORCE", loyalty: 6, panic: -2, china: 2, russia: 2 }
+        ];
+
+        const tweetVerbs = [
+            { text: "CANNOT BLOCK MY PATH TO ABSOLUTE SUPREMACY", loyalty: 2, panic: -2, china: 1, russia: 1 },
+            { text: "IS CRYING TOTALLY UNCONTROLLED ON NIGHTLY TELEVISION", loyalty: 3, panic: 1, china: 0, russia: -1 },
+            { text: "HAS UTTERLY RUINED GLOBAL MACRO ECONOMICS", loyalty: 1, panic: 3, china: 2, russia: 2 },
+            { text: "IS SECRETLY BEGGING FOR DE-ESCALATION TALKS", loyalty: 4, panic: -1, china: -2, russia: -2 }
+        ];
+
+        const tweetClosers = [
+            { text: "SAD!", loyalty: 1, panic: 0, china: 1, russia: 0 },
+            { text: "WE ARE WINNING MASSIVELY BIGLY!", loyalty: 6, panic: -4, china: -1, russia: -1 },
+            { text: "VERY UNPROFESSIONAL ACTORS!", loyalty: 2, panic: 1, china: 0, russia: 2 }
+        ];
+
+        // Master Roster of Potential Advisors
+        const masterCandidates = [
+            { name: "Press Secretary Apprentice", rate: 4, panicMod: -10, chinaMod: 0, russiaMod: -5, cost: 25 },
+            { name: "Cyber Threat Task Force Director", rate: 12, panicMod: -15, chinaMod: -5, russiaMod: -15, cost: 85 },
+            { name: "Rudy the Digital Mage", rate: 25, panicMod: 10, chinaMod: 5, russiaMod: 15, cost: 200 },
+            { name: "Steel Belt Manufacturing Chief", rate: 65, panicMod: -5, chinaMod: 20, russiaMod: 0, cost: 650 },
+            { name: "Tech Baron Elon Musket", rate: 180, panicMod: 5, chinaMod: 25, russiaMod: 20, cost: 2500 },
+            { name: "Cryptographic Quantum Falcon", rate: 600, panicMod: -20, chinaMod: -10, russiaMod: -10, cost: 9500 },
+            { name: "Sentient Mar-a-Lago AI Core", rate: 2200, panicMod: -30, chinaMod: -20, russiaMod: -20, cost: 45000 }
+        ];
+
+        // Administrative Programs Array
+        let upgradesDeck = [
+            { id: "proj_sharpie", name: "Deploy Black Sharpie Correction", baseCost: 40, count: 0, max: 1, type: "one-time", desc: "Reduces China and Russia friction bars by 15 points instantly through map re-drawing.", effect: () => { state.chinaFriction = Math.max(0, state.chinaFriction - 15); state.russiaFriction = Math.max(0, state.russiaFriction - 15); } },
+            { id: "proj_executive_order", name: "Sign 'Anti-Establishment' Decree", baseCost: 120, count: 0, max: 1, type: "one-time", desc: "Slashes D.C. Establishment Panic by 35 points immediately.", effect: () => { state.panic = Math.max(0, state.panic - 35); } },
+            
+            { id: "asset_podium", name: "Branded Golden Press Podium", baseCost: 30, count: 0, max: Infinity, type: "repeatable", rateBonus: 3, desc: "Increases structural output capacity via prime-time media control." },
+            { id: "asset_cart", name: "Custom Secure Golf Cart Fleet", baseCost: 150, count: 0, max: Infinity, type: "repeatable", rateBonus: 15, desc: "Accelerates deployment speeds across sovereign property clusters." }
+        ];
+
+        // Universal Paperclips Scaling Trade Room Arrays
+        let tariffsDeck = [
+            { id: "tariff_steel", name: "Execute 25% Heavy Steel Surcharges", baseCost: 300, count: 0, max: Infinity, desc: "Compounds global trade clout. Multiplies entire generation rate by 1.25x. (+15 China Friction)", effect: () => { state.tariffMultiplier *= 1.25; state.chinaFriction = Math.min(100, state.chinaFriction + 15); } },
+            { id: "tariff_tech", name: "Enact Rare Earth Microchip Bans", baseCost: 1200, count: 0, max: Infinity, desc: "Multiplies global generation rate by 1.4x. (+25 Russia Friction, +10 Panic)", effect: () => { state.tariffMultiplier *= 1.40; state.russiaFriction = Math.min(100, state.russiaFriction + 25); state.panic = Math.min(100, state.panic + 10); } }
+        ];
+
+        let assetsDeck = [
+            { id: "asset_tower", name: "Virtual Luxury Tower Network", baseCost: 4000, count: 0, max: Infinity, rateBonus: 110, desc: "Generates deep licensing clout streams across global server grids." },
+            { id: "asset_ai_tweet", name: "AI Quantum Auto-Tweeter Matrix", baseCost: 25000, count: 0, max: Infinity, rateBonus: 650, desc: "Automates micro-click frequencies. Forges massive independent clout loops." }
+        ];
+
+        // Escalating Cost Threat Engine
+        let threatDeck = [
+            { title: "🌪️ Emergency Incident: High-Velocity Sub-Tropical Storm", desc: "Atmospheric disruptions threaten industrial shipping nodes along national coastlines.", cost: 35, loyalty: 15, panic: 10, china: 0, russia: 0, log: "Storm systems bypassed mentally via public announcements. Base loyalty secure." },
+            { title: "💻 Geopolitical Incident: Baltic Sea Data Leak", desc: "Undersea physical fiber arrays show unauthorized data interception patterns.", cost: 250, loyalty: 10, panic: 20, china: 5, russia: 25, log: "Cyber security parameters rerouted. Baltic assets isolated successfully." },
+            { title: "🏭 Economic Incident: Global Rare Earth Embargo", desc: "Sovereign mining cartels restrict crucial component shipping parameters.", cost: 1500, loyalty: 25, panic: -10, china: 35, russia: 10, log: "Aggressive alternative logistics implemented. Trade networks shocked." },
+            { title: "🦅 Strategic Incident: Space Orbital Laser Threat Matrix", desc: "Unverified telemetry indicates weaponized satellites crossing sovereign aerospace lines.", cost: 12000, loyalty: 40, panic: 30, china: 20, russia: 20, log: "Space Force tactical planetary defenses activated. Complete orbital dominance asserted." }
+        ];
+        let currentThreatIndex = 0;
+
+        function initializeSimulation() {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'block';
+
+            generateMarketCandidates();
+            renderCabinet();
+            renderUpgrades();
+            renderTariffs();
+            renderAssets();
+            displayNextThreat();
+
+            // Main Core Clock Ticks (1000ms Loop)
+            setInterval(() => {
+                let trueRate = (state.baseCloutRate + (state.activeStaff ? state.activeStaff.rate : 0)) * state.tariffMultiplier;
+                state.clout += trueRate;
+                state.lifetimeClout += trueRate;
+
+                processMilestones();
+                updateTelemetryDisplay();
+                verifyStabilityBoundaries();
+            }, 1000);
+
+            // Financial Debt Animation Clock (70ms Loop)
+            setInterval(() => {
+                state.nationalDebt += Math.floor(Math.random() * 110000) + 40000;
+                document.getElementById('debt-val').innerText = `$${state.nationalDebt.toLocaleString()}`;
+            }, 70);
+        }
+
+        // Exponential Pricing Calculator (Universal Paperclips style)
+        function getCost(item) {
+            return Math.floor(item.baseCost * Math.pow(1.65, item.count));
+        }
+
+        function processMilestones() {
+            const hint = document.getElementById('unlock-hint-text');
+            
+            if (!state.milestones.upgrades && state.lifetimeClout >= 40) {
+                state.milestones.upgrades = true;
+                revealPanel('widget-upgrades', "System Notification: Administrative Program pipelines established.");
+            }
+            if (!state.milestones.tariffs && state.lifetimeClout >= 200) {
+                state.milestones.tariffs = true;
+                revealPanel('widget-tariffs', "System Notification: Tariff War Room open. Macro trade arrays online.");
+            }
+            if (!state.milestones.assets && state.lifetimeClout >= 1000) {
+                state.milestones.assets = true;
+                revealPanel('widget-assets', "System Notification: Macro Global Asset portfolio unlocked.");
+            }
+
+            // Interface Milestone Messaging Cleartext
+            if (!state.milestones.upgrades) {
+                hint.innerText = `Next pipeline unlock at ${Math.ceil(40 - state.lifetimeClout)} more Lifetime Clout`;
+            } else if (!state.milestones.tariffs) {
+                hint.innerText = `Tariff War Room unlock at ${Math.ceil(200 - state.lifetimeClout)} more Lifetime Clout`;
+            } else if (!state.milestones.assets) {
+                hint.innerText = `Sovereign Asset Array unlock at ${Math.ceil(1000 - state.lifetimeClout)} more Lifetime Clout`;
+            } else {
+                hint.innerText = "All architectural systems fully operational.";
+            }
+        }
+
+        function revealPanel(id, logMsg) {
+            document.getElementById(id).classList.add('visible');
+            pushLog(logMsg);
+        }
+
+        // Procedural Text Matrix & Weighted Multi-Meter Output
+        function fireWeightedTweet() {
+            const s = tweetSubjects[Math.floor(Math.random() * tweetSubjects.length)];
+            const v = tweetVerbs[Math.floor(Math.random() * tweetVerbs.length)];
+            const c = tweetClosers[Math.floor(Math.random() * tweetClosers.length)];
+
+            const tweetStr = `"${s.text} ${v.text} ${c.text}"`;
+            
+            state.clout += 2;
+            state.lifetimeClout += 2;
+
+            // Balance-checked Telemetry Drift Calculations
+            state.loyalty = Math.max(0, Math.min(100, state.loyalty + s.loyalty + v.loyalty + c.loyalty));
+            state.panic = Math.max(0, Math.min(100, state.panic + s.panic + v.panic + c.panic));
+            state.chinaFriction = Math.max(0, Math.min(100, state.chinaFriction + s.china + v.china + c.china));
+            state.russiaFriction = Math.max(0, Math.min(100, state.russiaFriction + s.russia + v.russia + c.russia));
+
+            pushLog(`Broadcast Issued: ${tweetStr}`);
+            updateTelemetryDisplay();
+        }
+
+        // Expanded Roster Pool Cabinet Logic
+        function generateMarketCandidates() {
+            state.marketCandidates = [];
+            // Dynamically select 3 separate entries from standard list based on progression depth
+            let available = [...masterCandidates];
+            for (let i = 0; i < 3; i++) {
+                let idx = Math.floor(Math.random() * available.length);
+                state.marketCandidates.push(JSON.parse(stringifyCandidate(available[idx])));
+            }
+        }
+
+        function stringifyCandidate(c) {
+            // Helper for deep cloning templates
+            return JSON.stringify(c);
+        }
+
+        function renderCabinet() {
+            const activeRoot = document.getElementById('active-staff-root');
+            if (state.activeStaff) {
+                activeRoot.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong>Active Appointment:</strong> ${state.activeStaff.name}<br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">Output Vector: +${state.activeStaff.rate} Clout/sec baseline</span>
+                        </div>
+                        <button class="fire-btn" style="background:var(--gop-red); border:none; padding:6px 12px; color:#fff; font-weight:bold; cursor:pointer; border-radius:4px;" onclick="terminateActiveStaff()">Dismiss</button>
+                    </div>
+                `;
+            } else {
+                activeRoot.innerHTML = `<strong>Active Appointment:</strong> <span style="color:#fc8181;">Vacant (Administration Bleeding Clout)</span>`;
+            }
+
+            const marketRoot = document.getElementById('candidate-market-root');
+            marketRoot.innerHTML = '';
+
+            state.marketCandidates.forEach((cand, idx) => {
+                marketRoot.innerHTML += `
+                    <div class="candidate-card">
+                        <div>
+                            <div class="candidate-name">${cand.name}</div>
+                            <div class="candidate-stats">
+                                Yield: +${cand.rate}/sec<br>
+                                Panic Drift: ${cand.panicMod}<br>
+                                Adversary Shifts: C(${cand.chinaMod}) | R(${cand.russiaMod})
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; display:flex; gap:5px;">
+                            <button class="buy-btn" style="padding:5px 8px; font-size:0.8rem; flex:2;" id="btn-hire-${idx}" onclick="appointStaff(${idx})">Appoint (${cand.cost})</button>
+                            <button class="buy-btn" style="padding:5px 5px; font-size:0.8rem; background:#4a5568; color:#fff; flex:1;" onclick="rejectCandidate(${idx})">X</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function appointStaff(index) {
+            let choice = state.marketCandidates[index];
+            if (state.clout >= choice.cost) {
+                state.clout -= choice.cost;
+                
+                state.activeStaff = choice;
+                state.panic = Math.max(0, Math.min(100, state.panic + choice.panicMod));
+                state.chinaFriction = Math.max(0, Math.min(100, state.chinaFriction + choice.chinaMod));
+                state.russiaFriction = Math.max(0, Math.min(100, state.russiaFriction + choice.russiaMod));
+
+                pushLog(`Appointed ${choice.name} to core administrative board.`);
+                state.marketCandidates.splice(index, 1);
+                
+                // Keep the marketplace fully loaded
+                let available = [...masterCandidates];
+                state.marketCandidates.push(JSON.parse(stringifyCandidate(available[Math.floor(Math.random() * available.length)])));
+
+                renderCabinet();
+                updateTelemetryDisplay();
+            } else {
+                pushLog("System Notice: Absolute command authority requires higher Clout backing.");
+            }
+        }
+
+        function rejectCandidate(index) {
+            let available = [...masterCandidates];
+            state.marketCandidates[index] = JSON.parse(stringifyCandidate(available[Math.floor(Math.random() * available.length)]));
+            pushLog("Vetting database updated. Alternative candidates processing.");
+            renderCabinet();
+        }
+
+        function terminateActiveStaff() {
+            pushLog(`Authorized immediate contract termination for ${state.activeStaff.name}. Seat vacant.`);
+            state.activeStaff = null;
+            state.panic = Math.min(100, state.panic + 10); // Sudden termination destabilizes D.C.
+            renderCabinet();
+            updateTelemetryDisplay();
+        }
+
+        // Multi-tier Dynamic Item Render Operations
+        function renderUpgrades() {
+            const root = document.getElementById('upgrades-root');
+            root.innerHTML = '';
+            upgradesDeck.filter(u => u.count < u.max).forEach(up => {
+                let currentCost = getCost(up);
+                root.innerHTML += `
+                    <div class="upgrade-card ${up.type}">
+                        <div>
+                            <strong>${up.name}</strong><br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">${up.desc}</span>
+                        </div>
+                        <button class="buy-btn" id="btn-up-${up.id}" onclick="buyUpgrade('${up.id}')">Execute (${currentCost})</button>
+                    </div>
+                `;
+            });
+        }
+
+        function buyUpgrade(id) {
+            let item = upgradesDeck.find(u => u.id === id);
+            let cost = getCost(item);
+            if (state.clout >= cost) {
+                state.clout -= cost;
+                item.count++;
+                if (item.type === 'repeatable') {
+                    state.baseCloutRate += item.rateBonus;
+                } else {
+                    item.effect();
+                }
+                pushLog(`Executed Program: ${item.name}`);
+                renderUpgrades();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function renderTariffs() {
+            const root = document.getElementById('tariffs-root');
+            root.innerHTML = '';
+            tariffsDeck.forEach(tf => {
+                let cost = getCost(tf);
+                root.innerHTML += `
+                    <div class="upgrade-card tariff">
+                        <div>
+                            <strong>${tf.name} (Rank ${tf.count})</strong><br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">${tf.desc}</span>
+                        </div>
+                        <button class="buy-btn" id="btn-tf-${tf.id}" onclick="buyTariff('${tf.id}')">Sign Surcharge (${cost})</button>
+                    </div>
+                `;
+            });
+        }
+
+        function buyTariff(id) {
+            let item = tariffsDeck.find(t => t.id === id);
+            let cost = getCost(item);
+            if (state.clout >= cost) {
+                state.clout -= cost;
+                item.count++;
+                item.effect();
+                pushLog(`Surcharge Signed: ${item.name}. Multipliers updated.`);
+                renderTariffs();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function renderAssets() {
+            const root = document.getElementById('assets-root');
+            root.innerHTML = '';
+            assetsDeck.forEach(ast => {
+                let cost = getCost(ast);
+                root.innerHTML += `
+                    <div class="upgrade-card repeatable">
+                        <div>
+                            <strong>${ast.name} (Qty: ${ast.count})</strong><br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">${ast.desc}</span>
+                        </div>
+                        <button class="buy-btn" id="btn-ast-${ast.id}" onclick="buyAsset('${ast.id}')">Acquire (${cost})</button>
+                    </div>
+                `;
+            });
+        }
+
+        function buyAsset(id) {
+            let item = assetsDeck.find(a => a.id === id);
+            let cost = getCost(item);
+            if (state.clout >= cost) {
+                state.clout -= cost;
+                item.count++;
+                state.baseCloutRate += item.rateBonus;
+                pushLog(`Asset Consolidated: ${item.name}. System clock velocity increased.`);
+                renderAssets();
+                updateTelemetryDisplay();
+            }
+        }
+
+        // Heavy Crisis Threat Engine Interface Layout
+        function displayNextThreat() {
+            const box = document.getElementById('event-box');
+            if (currentThreatIndex >= threatDeck.length) {
+                box.innerHTML = `
+                    <h3 class="event-title" style="color:#28a745;">✓ Complete Matrix Dominance</h3>
+                    <p class="event-desc">All tracking variables have balanced. Geopolitical friction points fully suppressed across both hemispheres.</p>
+                `;
+                return;
+            }
+
+            let threat = threatDeck[currentThreatIndex];
+            box.innerHTML = `
+                <h3 class="event-title" style="color:var(--gold);">${threat.title}</h3>
+                <p class="event-desc">${threat.desc}</p>
+                <button class="option-btn" onclick="resolveActiveThreat()">Authorize Capital Override Countermeasures (Costs ${threat.cost} Clout)</button>
+            `;
+        }
+
+        function resolveActiveThreat() {
+            let threat = threatDeck[currentThreatIndex];
+            if (state.clout >= threat.cost) {
+                state.clout -= threat.cost;
+                
+                // Adjust parameters across multiple vectors safely
+                state.loyalty = Math.max(0, Math.min(100, state.loyalty + threat.loyalty));
+                state.panic = Math.max(0, Math.min(100, state.panic - 10)); // Resolving crises lowers panic
+                state.chinaFriction = Math.max(0, Math.min(100, state.chinaFriction + threat.china));
+                state.russiaFriction = Math.max(0, Math.min(100, state.russiaFriction + threat.russia));
+
+                pushLog(`System Action: ${threat.log}`);
+                currentThreatIndex++;
+                displayNextThreat();
+                updateTelemetryDisplay();
+            } else {
+                pushLog("System Alert: Critical lack of Clout capital resources. Threat remains unmitigated! (+10 Panic, +10 Adversary Friction)");
+                state.panic = Math.min(100, state.panic + 10);
+                state.chinaFriction = Math.min(100, state.chinaFriction + 10);
+                state.russiaFriction = Math.min(100, state.russiaFriction + 10);
+                updateTelemetryDisplay();
+            }
+        }
+
+        function updateTelemetryDisplay() {
+            document.getElementById('clout-val').innerText = Math.floor(state.clout).toLocaleString();
+            
+            let totalRate = (state.baseCloutRate + (state.activeStaff ? state.activeStaff.rate : 0)) * state.tariffMultiplier;
+            document.getElementById('rate-val').innerText = `+${totalRate.toLocaleString(undefined, {maximumFractionDigits: 1})}/sec`;
+
+            document.getElementById('loyalty-txt').innerText = `${state.loyalty}%`;
+            document.getElementById('loyalty-bar').style.width = `${state.loyalty}%`;
+
+            document.getElementById('panic-txt').innerText = `${state.panic}%`;
+            document.getElementById('panic-bar').style.width = `${state.panic}%`;
+
+            document.getElementById('china-txt').innerText = `${state.chinaFriction}%`;
+            document.getElementById('china-bar').style.width = `${state.chinaFriction}%`;
+
+            document.getElementById('russia-txt').innerText = `${state.russiaFriction}%`;
+            document.getElementById('russia-bar').style.width = `${state.russiaFriction}%`;
+
+            // Keep buttons sync checked
+            upgradesDeck.forEach(up => {
+                let btn = document.getElementById(`btn-up-${up.id}`);
+                if (btn) btn.disabled = (state.clout < getCost(up));
+            });
+            tariffsDeck.forEach(tf => {
+                let btn = document.getElementById(`btn-tf-${tf.id}`);
+                if (btn) btn.disabled = (state.clout < getCost(tf));
+            });
+            assetsDeck.forEach(ast => {
+                let btn = document.getElementById(`btn-ast-${ast.id}`);
+                if (btn) btn.disabled = (state.clout < getCost(ast));
+            });
+            state.marketCandidates.forEach((cand, idx) => {
+                let btn = document.getElementById(`btn-hire-${idx}`);
+                if (btn) btn.disabled = (state.clout < cand.cost);
+            });
+        }
+
+        function pushLog(msg) {
+            const box = document.getElementById('log-box');
+            box.innerHTML += `<br>[Telemetry]: ${msg}`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function verifyStabilityBoundaries() {
+            if (state.loyalty <= 2) {
+                alert("Critical Boundary Failure: Electoral base reached zero. Government dissolved. Game Over.");
+                location.reload();
+            }
+            if (state.panic >= 98) {
+                alert("Friction Deficit: The D.C. Establishment overrode your smartphone connection parameters. Game Over.");
+                location.reload();
+            }
+            if (state.chinaFriction >= 98) {
+                alert("Geopolitical Conflict: Sovereign conflict vector with China breached limits. Trade blackout achieved. Game Over.");
+                location.reload();
+            }
+            if (state.russiaFriction >= 98) {
+                alert("Geopolitical Conflict: Northern Hemisphere cyber defense array completely breached by Moscow. Game Over.");
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>

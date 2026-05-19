@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICE Shooter</title>
+    <style>
+        :root {
+            --sky-color: #0b890f;
+            --street-color: #21262d;
+            --house-color: #9a3a3a;
+            --roof-color: #161b22; /* Darker than house */
+            --window-color: #010409;
+            --accent-color: #58a6ff;
+            --danger-color: #f85149;
+            --success-color: #3fb950;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: var(--sky-color);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            cursor: crosshair;
+            color: #c9d1d9;
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            inset: 0;
+            background: rgba(13, 17, 23, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            text-align: center;
+        }
+
+        .hidden { display: none !important; }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        /* HUD */
+        #ui {
+            position: absolute;
+            top: 20px;
+            z-index: 100;
+            background: rgba(22, 27, 34, 0.9);
+            padding: 15px 40px;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            display: flex;
+            gap: 40px;
+            pointer-events: none;
+        }
+
+        .stat-label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; }
+        .stat-value { font-size: 1.4rem; font-weight: bold; display: block; }
+
+        #timer-bar-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: #30363d;
+        }
+        #timer-bar { height: 100%; width: 100%; background: var(--accent-color); }
+
+        /* Game World */
+        #game-viewport {
+            position: relative;
+            width: 100vw;
+            height: 800px; /* Increased height to accommodate roof */
+            overflow: hidden;
+            border-bottom: 80px solid var(--street-color);
+            display: flex;
+            align-items: flex-end; /* Houses sit on the street */
+        }
+
+        #street-container {
+            position: absolute;
+            display: flex;
+            transition: transform 0.8s cubic-bezier(0.65, 0, 0.35, 1);
+            left: 0;
+            bottom: 0; /* Align container to bottom */
+            height: 100%;
+        }
+
+        .house {
+            position: relative;
+            width: 100vw;
+            height: 100%;
+            display: flex;
+            flex-direction: column; /* Roof over Body */
+            justify-content: flex-end; /* Push house structure to bottom */
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* Roof */
+        .house-roof {
+            width: 0;
+            height: 0;
+            border-left: 390px solid transparent; /* slightly wider than body */
+            border-right: 390px solid transparent;
+            border-bottom: 150px solid var(--roof-color); /* The actual roof triangle */
+            margin-bottom: -5px; /* Overlap slightly with body to avoid seam */
+            position: relative;
+            z-index: 2; /* Roof is in front of sky */
+        }
+
+        /* Impact Shake */
+        .shake { animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .house-body {
+            width: 750px;
+            height: 520px;
+            background-color: var(--house-color);
+            border: 10px solid #161b22;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 15px;
+            padding: 25px;
+            position: relative;
+            z-index: 1; /* Body behind roof overlap */
+        }
+
+        .window {
+            background-color: var(--window-color);
+            border: 3px solid #484f58;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .entity {
+            position: absolute;
+            bottom: -120%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 85%;
+            height: 90%;
+            transition: bottom 0.15s cubic-bezier(0.1, 0.7, 0.1, 1);
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .entity img { width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; }
+        .entity.active { bottom: 0; }
+
+        /* Effects */
+        .flash {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, #fff 0%, #ff0 30%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            animation: flash-out 0.1s forwards;
+            z-index: 1000;
+        }
+
+        @keyframes flash-out {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+
+        .score-popup {
+            position: absolute;
+            color: var(--success-color);
+            font-weight: bold;
+            font-size: 1.8rem;
+            pointer-events: none;
+            z-index: 1001;
+            transform: translate(-50%, -50%); /* Center on click */
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            animation: float-up 0.7s ease-out forwards;
+        }
+
+        @keyframes float-up {
+            0% { transform: translate(-50%, -50%) translateY(0); opacity: 1; }
+            100% { transform: translate(-50%, -50%) translateY(-70px); opacity: 0; }
+        }
+
+        .hit-marker {
+            position: absolute;
+            color: rgba(248, 81, 73, 0.8); /* var(--danger-color) with opacity */
+            font-size: 3rem;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 1002;
+            transform: translate(-50%, -50%); /* Center on click */
+            animation: hit-shrink 0.25s ease-out forwards;
+        }
+
+        @keyframes hit-shrink {
+            0% { transform: translate(-50%, -50%) scale(2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="welcome-screen" class="screen">
+        <h1 style="color: var(--accent-color);">Welcome to ICE!</h1>
+        <p>Your mission is to rid these homes from pesky migrants<br>If you hit too many civilians, you will be terminated. If you take too long, the illegals will escape</p>
+        <button onclick="startGame()">Let me at 'em!</button>
+    </div>
+
+    <div id="game-over-screen" class="screen hidden">
+        <h1 id="fail-reason" style="color: var(--danger-color);">MISSION FAILED</h1>
+        <p>Final Score: <span id="final-score">0</span></p>
+        <button onclick="restartGame()">Re-Deploy</button>
+    </div>
+
+    <div id="ui">
+        <div id="timer-bar-container"><div id="timer-bar"></div></div>
+        <div><span class="stat-label">House</span><span id="level" class="stat-value">1</span></div>
+        <div><span class="stat-label">Illegals</span><span id="targets" class="stat-value" style="color: var(--danger-color);">0</span></div>
+        <div><span class="stat-label">Strikes</span><span id="strikes" class="stat-value"></span></div>
+        <div><span class="stat-label">Score</span><span id="score" class="stat-value" style="color: var(--success-color);">0</span></div>
+    </div>
+
+    <div id="game-viewport"><div id="street-container"></div></div>
+
+    <script>
+        /** * TUNABLE GAME PARAMETERS **/
+        const GAME_CONFIG = {
+            GRID_COLS: 5,
+            GRID_ROWS: 3,
+            STARTING_THREATS: 6,
+            THREAT_INCREMENT: 3,
+            CHANCE_OF_BAD_GUY: 0.45,
+            STRIKES_ALLOWED: 3,
+            BASE_TIME: 20,
+            TIME_PER_TARGET: 1.5,
+            MIN_SPAWN_DELAY: 150,
+            MAX_SPAWN_DELAY: 800,
+            MIN_VISIBLE_TIME: 350,
+            MAX_VISIBLE_TIME: 1300,
+            HIT_GRACE_PERIOD: 250,
+            POINT_VALUE: 150,
+            PENALTY_VALUE: 500
+        };
+
+        const badGuyImages = ['threat1.png', 'threat2.png', 'threat3', 'threat4', 'threat5']; 
+        const goodGuyImages = ['civilian1.png', 'civilian2.png', 'civilian3', 'civilian4'];
+
+        const container = document.getElementById('street-container');
+        const levelDisplay = document.getElementById('level');
+        const targetDisplay = document.getElementById('targets');
+        const scoreDisplay = document.getElementById('score');
+        const strikeDisplay = document.getElementById('strikes');
+        const timerBar = document.getElementById('timer-bar');
+
+        let currentLevel = 1, score = 0, strikes = 0, badGuysRemaining = 0;
+        let isTransitioning = false, isGameOver = false;
+        let spawnTimer = null, gameTimer = null, timeLeft = 0, maxTime = 0;
+
+        // Level Skip Cheat for testing (Press 'N')
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'n' || e.key === 'N') {
+                if (!isGameOver && !isTransitioning) advanceLevel();
+            }
+        });
+
+        function startGame() {
+            document.getElementById('welcome-screen').classList.add('hidden');
+            resetGameState();
+            initLevel();
+        }
+
+        function resetGameState() {
+            currentLevel = 1; score = 0; strikes = 0; isGameOver = false;
+            container.innerHTML = '';
+            container.style.transform = 'translateX(0)';
+            updateUI();
+        }
+
+        function restartGame() {
+            document.getElementById('game-over-screen').classList.add('hidden');
+            resetGameState();
+            initLevel();
+        }
+
+        function gameOver(reason) {
+            isGameOver = true;
+            clearTimeout(spawnTimer);
+            clearInterval(gameTimer);
+            document.getElementById('fail-reason').innerText = reason;
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+
+        function initLevel() {
+            badGuysRemaining = GAME_CONFIG.STARTING_THREATS + ((currentLevel - 1) * GAME_CONFIG.THREAT_INCREMENT);
+            maxTime = GAME_CONFIG.BASE_TIME + (badGuysRemaining * GAME_CONFIG.TIME_PER_TARGET);
+            timeLeft = maxTime;
+            
+            const newHouse = createHouse();
+            container.appendChild(newHouse);
+
+            if (currentLevel > 1) {
+                isTransitioning = true;
+                container.style.transform = `translateX(-${(currentLevel - 1) * 100}vw)`;
+                setTimeout(() => {
+                    isTransitioning = false;
+                    cleanupOldHouses();
+                    startLevelLoops();
+                }, 850);
+            } else {
+                startLevelLoops();
+            }
+            updateUI();
+        }
+
+        function startLevelLoops() {
+            startSpawning();
+            startTimer();
+        }
+
+        function startTimer() {
+            clearInterval(gameTimer);
+            gameTimer = setInterval(() => {
+                if (isTransitioning || isGameOver) return;
+                timeLeft -= 0.1;
+                const percentage = (timeLeft / maxTime) * 100;
+                timerBar.style.width = percentage + '%';
+                timerBar.style.background = percentage < 25 ? 'var(--danger-color)' : 'var(--accent-color)';
+                if (timeLeft <= 0) gameOver("TIME EXPIRED: ILLEGALS ESCAPED");
+            }, 100);
+        }
+
+        function createHouse() {
+            const houseDiv = document.createElement('div');
+            houseDiv.className = 'house';
+
+            const roof = document.createElement('div');
+            roof.className = 'house-roof';
+            houseDiv.appendChild(roof);
+
+            const houseBody = document.createElement('div');
+            houseBody.className = 'house-body';
+            // Variable color based on level
+            houseBody.style.backgroundColor = `hsl(${(currentLevel * 50) % 360}, 15%, 25%)`;
+
+            for (let i = 0; i < (GAME_CONFIG.GRID_COLS * GAME_CONFIG.GRID_ROWS); i++) {
+                const win = document.createElement('div');
+                win.className = 'window';
+                const entity = document.createElement('div');
+                entity.className = 'entity';
+                entity.appendChild(document.createElement('img'));
+                win.appendChild(entity);
+                win.addEventListener('mousedown', (e) => shootWindow(win, e));
+                houseBody.appendChild(win);
+            }
+            houseDiv.appendChild(houseBody);
+            return houseDiv;
+        }
+
+        function shootWindow(win, e) {
+            if (isTransitioning || isGameOver) return;
+
+            // Visual effects container (needed so screen shake doesn't move popups)
+            const viewport = document.getElementById('game-viewport');
+
+            // 1. Always show Muzzle Flash at click coordinates (global)
+            const flash = document.createElement('div');
+            flash.className = 'flash';
+            flash.style.left = `${e.clientX}px`;
+            flash.style.top = `${e.clientY}px`;
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 100);
+
+            const entity = win.querySelector('.entity');
+            
+            // Grace Period Check: Is it active OR was it active very recently?
+            const isTargetable = entity.classList.contains('active') || (Date.now() - entity.dataset.lastActive < GAME_CONFIG.HIT_GRACE_PERIOD);
+
+            if (isTargetable && !entity.dataset.hit) {
+                entity.dataset.hit = "true"; // Prevent double-clicking same entity
+                
+                if (entity.dataset.type === 'bad') {
+                    handleBadGuyHit(win, entity, viewport, e);
+                } else {
+                    handleGoodGuyHit(win);
+                }
+            }
+        }
+
+        function handleBadGuyHit(win, entity, viewport, e) {
+            score += GAME_CONFIG.POINT_VALUE;
+            badGuysRemaining--;
+            entity.classList.remove('active');
+            updateUI();
+
+            // --- Impact Effects for Successful Hit ---
+
+            // A. Add floating score popup
+            const popup = document.createElement('div');
+            popup.className = 'score-popup';
+            popup.innerText = `+${GAME_CONFIG.POINT_VALUE}`;
+            popup.style.left = `${e.clientX}px`;
+            popup.style.top = `${e.clientY}px`;
+            viewport.appendChild(popup);
+            setTimeout(() => popup.remove(), 700);
+
+            // B. Add visual Hit Marker (Red X)
+            const marker = document.createElement('div');
+            marker.className = 'hit-marker';
+            marker.innerText = '✕'; 
+            marker.style.left = `${e.clientX}px`;
+            marker.style.top = `${e.clientY}px`;
+            viewport.appendChild(marker);
+            setTimeout(() => marker.remove(), 250);
+
+            // C. Screen Shake the specific house
+            const currentHouseBody = win.closest('.house-body');
+            currentHouseBody.classList.add('shake');
+            setTimeout(() => currentHouseBody.classList.remove('shake'), 200);
+
+            if (badGuysRemaining <= 0) advanceLevel();
+        }
+
+        function handleGoodGuyHit(win) {
+            strikes++;
+            score = Math.max(0, score - GAME_CONFIG.PENALTY_VALUE);
+            updateUI();
+            // Flash window red for penalty
+            win.style.backgroundColor = 'var(--danger-color)';
+            setTimeout(() => win.style.backgroundColor = '', 200);
+            
+            if (strikes >= GAME_CONFIG.STRIKES_ALLOWED) gameOver("YOU KILLED TOO MANY WHITE GUYS");
+        }
+
+        function advanceLevel() {
+            currentLevel++;
+            clearTimeout(spawnTimer);
+            clearInterval(gameTimer);
+            setTimeout(initLevel, 600);
+        }
+
+        function startSpawning() {
+            if (badGuysRemaining <= 0 || isTransitioning || isGameOver) return;
+
+            const currentHouse = container.querySelector('.house:last-child');
+            if (!currentHouse) return;
+
+            const windows = Array.from(currentHouse.querySelectorAll('.window'));
+            const eligibleWindows = windows.filter(w => !w.querySelector('.entity').classList.contains('active'));
+            
+            if (eligibleWindows.length > 0) {
+                const randomWin = eligibleWindows[Math.floor(Math.random() * eligibleWindows.length)];
+                const entity = randomWin.querySelector('.entity');
+                const img = entity.querySelector('img');
+
+                const isBad = Math.random() < GAME_CONFIG.CHANCE_OF_BAD_GUY;
+                entity.dataset.type = isBad ? 'bad' : 'good';
+                entity.dataset.hit = ""; // Reset hit state
+
+                const list = isBad ? badGuyImages : goodGuyImages;
+                const folder = isBad ? 'badguys' : 'goodguys';
+                img.src = `${folder}/${list[Math.floor(Math.random() * list.length)]}`;
+                
+                img.onload = () => {
+                    entity.classList.add('active');
+                    const visibleTime = Math.max(GAME_CONFIG.MIN_VISIBLE_TIME, GAME_CONFIG.MAX_VISIBLE_TIME - (currentLevel * 100));
+                    
+                    setTimeout(() => {
+                        entity.classList.remove('active');
+                        entity.dataset.lastActive = Date.now(); // Mark the start of the grace period
+                    }, visibleTime);
+                };
+            }
+
+            const nextSpawn = Math.max(GAME_CONFIG.MIN_SPAWN_DELAY, GAME_CONFIG.MAX_SPAWN_DELAY - (currentLevel * 60));
+            spawnTimer = setTimeout(startSpawning, nextSpawn);
+        }
+
+        function updateUI() {
+            levelDisplay.innerText = currentLevel;
+            targetDisplay.innerText = badGuysRemaining;
+            scoreDisplay.innerText = score;
+            strikeDisplay.innerHTML = '✖'.repeat(strikes) || 'NONE';
+        }
+
+        function cleanupOldHouses() {
+            const houses = container.querySelectorAll('.house');
+            for (let i = 0; i < houses.length - 1; i++) houses[i].remove();
+            container.style.transition = 'none';
+            container.style.transform = 'translateX(0)';
+            container.offsetHeight; 
+            container.style.transition = 'transform 0.8s cubic-bezier(0.65, 0, 0.35, 1)';
+        }
+    </script>
+</body>
+</html>

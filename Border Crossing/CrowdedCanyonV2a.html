@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canyon Braid: Dynamic Clearance</title>
+    <style>
+        :root { --bg: #050508; --cyan: #00f2ff; --magenta: #ff00ff; --green: #00ff9d; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', sans-serif; color: white; }
+        canvas { display: block; }
+        #hud { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .stat { background: rgba(0,0,0,0.8); border-left: 4px solid var(--cyan); padding: 10px 20px; min-width: 120px; }
+        .val { font-size: 24px; font-weight: 900; }
+        .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.9); z-index: 100; text-align: center;}
+        .menu-row { display: flex; gap: 20px; margin-top: 30px; }
+        button { background: transparent; border: 2px solid var(--cyan); color: var(--cyan); padding: 15px 30px; cursor: pointer; font-weight: 900; letter-spacing: 2px; transition: 0.3s; }
+        button:hover { background: var(--cyan); color: black; box-shadow: 0 0 20px var(--cyan); }
+        button.alt { border-color: var(--magenta); color: var(--magenta); }
+        button.alt:hover { background: var(--magenta); color: black; box-shadow: 0 0 20px var(--magenta); }
+        #exit-explore { position: absolute; bottom: 30px; left: 30px; display: none; z-index: 50; }
+    </style>
+</head>
+<body>
+
+<div id="ui-start" class="overlay">
+    <h1 style="letter-spacing: 20px; font-size: 50px; margin: 0;">CANYON</h1>
+    <div class="menu-row">
+        <button onclick="initGame(false)">SYNC NEURAL</button>
+        <button class="alt" onclick="initGame(true)">EXPLORE MODE</button>
+    </div>
+</div>
+
+<button id="exit-explore" onclick="location.reload()">EXIT EXPLORE</button>
+
+<div id="ui-death" class="overlay" style="display:none">
+    <h1 id="death-msg" style="color: var(--magenta); font-size: 40px;">CRITICAL FAILURE</h1>
+    <div id="final-score" style="margin: 20px; font-size: 20px;"></div>
+    <button onclick="location.reload()">RE-SYNC</button>
+</div>
+
+<div id="hud">
+    <div class="stat"><div class="label">HULL</div><div id="hp" class="val">3</div></div>
+    <div class="stat" id="time-stat" style="border-color: var(--green);"><div class="label">TIME</div><div id="time" class="val">15</div></div>
+    <div class="stat" style="border-color: white;"><div class="label">DATA</div><div id="score" class="val">0</div></div>
+</div>
+
+<canvas id="g"></canvas>
+
+<script>
+    const canvas = document.getElementById('g');
+    const ctx = canvas.getContext('2d');
+    const COLORS = { cyan: "#00f2ff", magenta: "#ff00ff", green: "#00ff9d" };
+
+    let s = {
+        active: false, explore: false,
+        p: { x: 0, y: 0, vx: 0, vy: 0 },
+        nodes: [], npcs: [], hp: 3, invinc: 0, time: 30, score: 0,
+        gateY: -4000, m: { x: 0, y: 0 },
+        isSplitting: false, splitCd: 0, isMerging: false
+    };
+
+    const PHYSICS = {
+        accel: 0.009,
+        friction: 0.94,
+        maxSpeed: 16,
+        forwardBias: 0.4
+    };
+
+    const GEN = {
+        MIN_CANYON: 450,
+        MAX_CANYON: 1000,
+        MIN_PATH: 180 // Minimum room between island and wall
+    };
+
+    window.addEventListener('mousemove', e => {
+        s.m.x = e.clientX - canvas.width/2;
+        s.m.y = e.clientY - (canvas.height * 0.75);
+    });
+
+    window.addEventListener('resize', () => { 
+        canvas.width = window.innerWidth; 
+        canvas.height = window.innerHeight; 
+    });
+    window.dispatchEvent(new Event('resize'));
+
+    function addNode() {
+        const last = s.nodes[s.nodes.length - 1] || { 
+            y: 500, lX: -350, rX: 350, ilX: null, irX: null 
+        };
+        const newY = last.y - 200;
+        
+        if (s.splitCd > 0) s.splitCd--;
+        else {
+            if (!s.isSplitting && Math.random() < 0.09) {
+                s.isSplitting = true; s.isMerging = false; s.splitCd = 25 + Math.random() * 35;
+            } else if (s.isSplitting && !s.isMerging && Math.random() < 0.15) {
+                s.isMerging = true;
+            }
+        }
+
+        let nlX = last.lX + (Math.random()-0.5) * 160; 
+        let nrX = last.rX + (Math.random()-0.5) * 160;
+
+        // Island Generation logic
+        let nilX = null, nirX = null;
+        if (s.isSplitting && !s.isMerging) {
+            let center = (nlX + nrX) / 2;
+            if (last.ilX === null) { nilX = center - 5; nirX = center + 5; } 
+            else {
+                nilX = last.ilX + (Math.random()-0.6) * 110;
+                nirX = last.irX + (Math.random()-0.4) * 110;
+            }
+        } else if (s.isMerging) {
+            let target = (last.ilX + last.irX) / 2;
+            nilX = last.ilX + (target - last.ilX) * 0.25;
+            nirX = last.irX + (target - last.irX) * 0.25;
+            if (nirX - nilX < 15) { nilX = null; nirX = null; s.isSplitting = false; s.isMerging = false; s.splitCd = 45; }
+        }
+
+        // --- THE DYNAMIC CLEARANCE PROTOCOL ---
+        // If island exists, force walls out to ensure MIN_PATH + some randomness
+        const noise = () => (Math.random() * 40);
+        if (nilX !== null) {
+            if (nilX - nlX < GEN.MIN_PATH) nlX = nilX - (GEN.MIN_PATH + noise());
+            if (nrX - nirX < GEN.MIN_PATH) nrX = nirX + (GEN.MIN_PATH + noise());
+        }
+
+        // General canyon constraints
+        if (nrX - nlX < GEN.MIN_CANYON) { nlX -= 50; nrX += 50; }
+        if (nrX - nlX > GEN.MAX_CANYON) { nlX += 50; nrX -= 50; }
+
+        s.nodes.push({ y: newY, lX: nlX, rX: nrX, ilX: nilX, irX: nirX });
+    }
+
+    function initGame(exploreMode) {
+        document.getElementById('ui-start').style.display = 'none';
+        s.explore = exploreMode;
+        if(s.explore) {
+            document.getElementById('time-stat').style.opacity = '0.3';
+            document.getElementById('exit-explore').style.display = 'block';
+        }
+        
+        s.active = true; s.hp = 3; s.score = 0; s.time = 30;
+        s.p = { x: 0, y: 0, vx: 0, vy: 0 };
+        s.nodes = []; s.npcs = []; s.gateY = -3000;
+        
+        for(let i=0; i<60; i++) addNode();
+        requestAnimationFrame(loop);
+    }
+
+    function getBounds(y) {
+        if (s.nodes.length < 2) return null;
+        for (let i=0; i<s.nodes.length-1; i++) {
+            let n1 = s.nodes[i], n2 = s.nodes[i+1];
+            if (y <= n1.y && y >= n2.y) {
+                let p = (y - n1.y)/(n2.y - n1.y);
+                return {
+                    lX: n1.lX + (n2.lX-n1.lX)*p,
+                    rX: n1.rX + (n2.rX-n1.rX)*p,
+                    ilX: (n1.ilX !== null && n2.ilX !== null) ? n1.ilX + (n2.ilX-n1.ilX)*p : null,
+                    irX: (n1.irX !== null && n2.irX !== null) ? n1.irX + (n2.irX-n1.irX)*p : null
+                };
+            }
+        }
+        return null;
+    }
+
+    function loop() {
+        if (!s.active) return;
+        if (!s.explore) s.time -= 1/60;
+        if (s.invinc > 0) s.invinc--;
+
+        s.p.vx += (s.m.x - 0) * PHYSICS.accel;
+        s.p.vy += (s.m.y - 0) * PHYSICS.accel;
+        if(!s.explore) s.p.vy -= PHYSICS.forwardBias; 
+
+        s.p.vx *= PHYSICS.friction;
+        s.p.vy *= PHYSICS.friction;
+
+        let speed = Math.hypot(s.p.vx, s.p.vy);
+        if (speed > PHYSICS.maxSpeed) {
+            let ratio = PHYSICS.maxSpeed / speed;
+            s.p.vx *= ratio;
+            s.p.vy *= ratio;
+        }
+
+        s.p.x += s.p.vx;
+        s.p.y += s.p.vy;
+
+        const minY = s.nodes[0].y;
+        if (s.p.y > minY - 100) { s.p.y = minY - 100; s.p.vy = 0; }
+
+        let b = getBounds(s.p.y);
+        if (b) {
+            if (s.p.x < b.lX + 15) { s.p.x = b.lX + 15; s.p.vx *= -0.5; }
+            if (s.p.x > b.rX - 15) { s.p.x = b.rX - 15; s.p.vx *= -0.5; }
+            if (b.ilX !== null) {
+                if (s.p.x > b.ilX - 15 && s.p.x < b.irX + 15) {
+                    if (Math.abs(s.p.x - b.ilX) < Math.abs(s.p.x - b.irX)) { s.p.x = b.ilX - 15; s.p.vx *= -0.5; }
+                    else { s.p.x = b.irX + 15; s.p.vx *= -0.5; }
+                }
+            }
+        }
+
+        while (s.nodes[s.nodes.length-1].y > s.p.y - 6000) addNode();
+        if (s.nodes[0].y > s.p.y + 2000) s.nodes.shift();
+
+        if (s.p.y < s.gateY) {
+            if(!s.explore) { s.score += 5000; s.time = Math.min(60, s.time + 15); }
+            s.gateY -= 6000;
+        }
+
+        if (!s.explore && Math.random() < 0.1) {
+            let sy = s.p.y - 2500;
+            let nb = getBounds(sy);
+            if (nb) {
+                let rx = nb.lX + Math.random()*(nb.rX - nb.lX);
+                if (nb.ilX === null || rx < nb.ilX - 20 || rx > nb.irX + 20) {
+                    s.npcs.push({ x: rx, y: sy, spd: 3 + Math.random()*5, vx: (Math.random()-0.5)*15 });
+                }
+            }
+        }
+
+        s.npcs.forEach((n, idx) => {
+            n.y += n.spd; n.x += n.vx;
+            let nb = getBounds(n.y);
+            if (nb) {
+                if (n.x < nb.lX + 12 || n.x > nb.rX - 12) n.vx *= -1;
+                if (nb.ilX !== null && n.x > nb.ilX - 12 && n.x < nb.irX + 12) n.vx *= -1;
+            }
+            if (Math.hypot(n.x - s.p.x, n.y - s.p.y) < 25 && s.invinc <= 0) {
+                s.hp--; s.invinc = 60;
+                if (s.hp <= 0) s.active = false;
+            }
+            if (n.y > s.p.y + 2000) s.npcs.splice(idx, 1);
+        });
+
+        if (!s.explore && s.time <= 0) s.active = false;
+        if (!s.active) document.getElementById('ui-death').style.display = 'flex';
+
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    function draw() {
+        ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(-s.p.x + canvas.width/2, -s.p.y + canvas.height * 0.75);
+
+        // Floor
+        ctx.beginPath();
+        s.nodes.forEach((n, i) => { if(i === 0) ctx.moveTo(n.lX, n.y); else ctx.lineTo(n.lX, n.y); });
+        for(let i=s.nodes.length-1; i>=0; i--) { ctx.lineTo(s.nodes[i].rX, s.nodes[i].y); }
+        ctx.closePath();
+        ctx.fillStyle = '#0a0a1a'; ctx.fill();
+
+        // Island Cutout
+        ctx.fillStyle = '#050508';
+        let islandActive = false;
+        ctx.beginPath();
+        s.nodes.forEach(n => {
+            if (n.ilX !== null) {
+                if (!islandActive) { ctx.moveTo(n.ilX, n.y); islandActive = true; }
+                else ctx.lineTo(n.ilX, n.y);
+            } else islandActive = false;
+        });
+        islandActive = false;
+        for(let i=s.nodes.length-1; i>=0; i--) {
+            let n = s.nodes[i];
+            if (n.irX !== null) {
+                if (!islandActive) { ctx.lineTo(n.irX, n.y); islandActive = true; }
+                else ctx.lineTo(n.irX, n.y);
+            } else islandActive = false;
+        }
+        ctx.fill();
+
+        // Neon Walls
+        ctx.lineWidth = 3; ctx.shadowBlur = 8;
+        ctx.strokeStyle = COLORS.cyan; ctx.shadowColor = COLORS.cyan;
+        ctx.beginPath(); s.nodes.forEach((n, i) => { if(i===0) ctx.moveTo(n.lX, n.y); else ctx.lineTo(n.lX, n.y); }); ctx.stroke();
+        ctx.beginPath(); s.nodes.forEach((n, i) => { if(i===0) ctx.moveTo(n.rX, n.y); else ctx.lineTo(n.rX, n.y); }); ctx.stroke();
+
+        islandActive = false;
+        ctx.beginPath();
+        s.nodes.forEach(n => {
+            if (n.ilX !== null) {
+                if (!islandActive) { ctx.moveTo(n.ilX, n.y); islandActive = true; }
+                else ctx.lineTo(n.ilX, n.y);
+            } else if (islandActive) { ctx.stroke(); ctx.beginPath(); islandActive = false; }
+        });
+        ctx.stroke();
+        islandActive = false;
+        ctx.beginPath();
+        s.nodes.forEach(n => {
+            if (n.irX !== null) {
+                if (!islandActive) { ctx.moveTo(n.irX, n.y); islandActive = true; }
+                else ctx.lineTo(n.irX, n.y);
+            } else if (islandActive) { ctx.stroke(); ctx.beginPath(); islandActive = false; }
+        });
+        ctx.stroke();
+
+        // Energy Gate
+        let gb = getBounds(s.gateY);
+        if(gb) {
+            ctx.lineWidth = 15; ctx.strokeStyle = COLORS.green; ctx.shadowColor = COLORS.green; ctx.shadowBlur = 20;
+            ctx.beginPath(); ctx.moveTo(gb.lX, s.gateY); ctx.lineTo(gb.rX, s.gateY); ctx.stroke();
+        }
+
+        // Player
+        if (s.invinc % 10 < 5) {
+            ctx.fillStyle = "white"; ctx.shadowColor = "white"; ctx.shadowBlur = 20;
+            ctx.beginPath(); ctx.arc(s.p.x, s.p.y, 15, 0, 7); ctx.fill();
+            ctx.strokeStyle = COLORS.cyan; ctx.lineWidth = 3; ctx.lineCap = "round";
+            ctx.beginPath(); ctx.moveTo(s.p.x, s.p.y); ctx.lineTo(s.p.x + s.p.vx*3, s.p.y + s.p.vy*3); ctx.stroke();
+        }
+
+        // NPCs
+        s.npcs.forEach(n => {
+            ctx.fillStyle = COLORS.magenta; ctx.shadowColor = COLORS.magenta;
+            ctx.beginPath(); ctx.arc(n.x, n.y, 12, 0, 7); ctx.fill();
+        });
+
+        ctx.restore();
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crowded Canyon</title>
+    <style>
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-magenta: #ff00ff;
+            --neon-green: #00ff9d;
+            --bg-dark: #0a0a0f;
+            --card-bg: rgba(20, 20, 30, 0.8);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background: var(--bg-dark); 
+            font-family: 'Segoe UI', sans-serif; 
+        }
+        
+        canvas { display: block; }
+
+        #hud { 
+            position: absolute; right: 30px; top: 30px; z-index: 50; 
+            display: flex; flex-direction: column; gap: 12px;
+            pointer-events: none; 
+        }
+
+        .stat-box {
+            background: var(--card-bg);
+            border-left: 4px solid var(--neon-cyan);
+            padding: 8px 18px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            min-width: 130px;
+        }
+
+        .label { 
+            font-size: 9px; text-transform: uppercase; 
+            letter-spacing: 2px; color: var(--neon-cyan); 
+            margin-bottom: 3px; font-weight: bold;
+        }
+        
+        .val { font-size: 24px; font-weight: 900; color: #fff; }
+
+        .overlay { 
+            position: absolute; inset: 0; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; 
+            background: radial-gradient(circle, rgba(15,15,25,0.95) 0%, rgba(5,5,10,1) 100%);
+            color: #fff; z-index: 100; text-align: center; 
+        }
+
+        h1 { 
+            font-size: clamp(32px, 8vw, 64px); letter-spacing: 15px; margin-bottom: 30px; 
+            text-transform: uppercase; color: var(--neon-cyan);
+            text-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+        }
+
+        .menu-row { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center; }
+
+        button { 
+            background: transparent; border: 1px solid var(--neon-cyan); 
+            color: var(--neon-cyan); padding: 12px 25px; cursor: pointer; 
+            font-family: inherit; font-weight: bold; text-transform: uppercase;
+            transition: all 0.2s ease; letter-spacing: 2px;
+        }
+
+        button:hover, .selected { 
+            background: var(--neon-cyan); color: var(--bg-dark); 
+            box-shadow: 0 0 20px var(--neon-cyan);
+        }
+
+        #death-msg { color: var(--neon-magenta); font-size: 24px; margin-bottom: 20px; }
+        #gp-status { font-size: 10px; color: var(--neon-green); margin-top: 10px; opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<div id="ui-start" class="overlay">
+    <h1>CROWDED CANYON</h1>
+    <div class="menu-row">
+        <button id="btn-mouse" class="selected" onclick="setControls('mouse')">Mouse</button>
+        <button id="btn-keys" onclick="setControls('keys')">Keyboard</button>
+        <button id="btn-pad" onclick="setControls('pad')">Gamepad</button>
+    </div>
+    <button onclick="initGame()" style="font-size: 18px; border-width: 2px;">PLAY!</button>
+    <div id="gp-status" style="display:none">Gamepad Detected</div>
+</div>
+
+<div id="ui-death" class="overlay" style="display:none">
+    <h1 id="death-msg">GAME OVER</h1>
+    <button onclick="initGame()">Try Again?</button>
+</div>
+
+<div id="hud">
+    <div class="stat-box">
+        <div class="label">Health</div>
+        <div id="lives-val" class="val">3</div>
+    </div>
+    <div class="stat-box" style="border-left-color: var(--neon-green);">
+        <div class="label">Time</div>
+        <div id="timer-val" class="val">15</div>
+    </div>
+    <div class="stat-box" style="border-left-color: #fff;">
+        <div class="label">Gates</div>
+        <div id="score-val" class="val">0</div>
+    </div>
+</div>
+
+<canvas id="g"></canvas>
+
+<script>
+    const canvas = document.getElementById('g');
+    const ctx = canvas.getContext('2d');
+
+    let state = {
+        active: false,
+        inputType: 'mouse',
+        player: { x: 0, y: 0, vx: 0, vy: 0 },
+        cameraX: 0,
+        lives: 3,
+        invincible: 0,
+        nodes: [],
+        npcs: [],
+        score: 0,
+        timeLeft: 15,
+        mouse: { x: 0, y: 0 },
+        keys: {},
+        nextGateY: -2500
+    };
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        state.cameraX = canvas.width / 2;
+    }
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', e => { state.mouse.x = e.clientX; state.mouse.y = e.clientY; });
+    window.addEventListener('keydown', e => state.keys[e.code] = true);
+    window.addEventListener('keyup', e => state.keys[e.code] = false);
+    window.addEventListener("gamepadconnected", () => {
+        document.getElementById('gp-status').style.display = 'block';
+    });
+
+    resize();
+
+    function setControls(type) {
+        state.inputType = type;
+        ['mouse', 'keys', 'pad'].forEach(t => {
+            document.getElementById('btn-' + t).className = type === t ? 'selected' : '';
+        });
+    }
+
+    function addNode(customY) {
+        const last = state.nodes[state.nodes.length - 1] || { y: 1200, x: canvas.width / 2, w: 500 };
+        const newY = customY !== undefined ? customY : last.y - 200;
+        
+        const centerX = canvas.width / 2;
+        const offsetFromCenter = last.x - centerX;
+        const drift = (Math.random() - 0.5) * (200 + state.score * 5);
+        const pull = offsetFromCenter * 0.15; 
+        
+        let newX = last.x + drift - pull;
+        // Difficulty: Canyon narrows slightly as score increases
+        const minW = Math.max(220, 300 - state.score * 2);
+        let newW = Math.max(minW, Math.min(800, last.w + (Math.random() - 0.5) * 100));
+
+        const padding = 60;
+        if (newX - newW/2 < padding) newX = padding + newW/2;
+        if (newX + newW/2 > canvas.width - padding) newX = canvas.width - padding - newW/2;
+
+        state.nodes.push({ y: newY, x: newX, w: newW });
+    }
+
+    function initGame() {
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        state.active = true;
+        state.lives = 3;
+        state.invincible = 0;
+        state.player = { x: canvas.width / 2, y: 0, vx: 0, vy: 0 };
+        state.cameraX = canvas.width / 2;
+        state.score = 0;
+        state.timeLeft = 15;
+        state.nextGateY = -2500;
+        state.nodes = [];
+        state.npcs = [];
+        
+        for (let i = -5; i < 50; i++) addNode(1000 - (i * 200));
+        loop();
+    }
+
+    function getHall(y) {
+        if (state.nodes.length === 0) return { x: canvas.width / 2, w: 500 };
+        if (y > state.nodes[0].y) return { x: state.nodes[0].x, w: state.nodes[0].w };
+        if (y < state.nodes[state.nodes.length - 1].y) {
+            const last = state.nodes[state.nodes.length - 1];
+            return { x: last.x, w: last.w };
+        }
+
+        for (let i = 0; i < state.nodes.length - 1; i++) {
+            let n1 = state.nodes[i];
+            let n2 = state.nodes[i + 1];
+            if (y <= n1.y && y >= n2.y) {
+                let p = (y - n1.y) / (n2.y - n1.y);
+                return { x: n1.x + (n2.x - n1.x) * p, w: n1.w + (n2.w - n1.w) * p };
+            }
+        }
+        return { x: canvas.width / 2, w: 500 };
+    }
+
+    function handleInput() {
+        let ax = 0, ay = 0;
+        if (state.inputType === 'mouse') {
+            const screenPlayerY = canvas.height * 0.7;
+            const dx = (state.mouse.x + (state.cameraX - canvas.width/2)) - state.player.x;
+            const dy = state.mouse.y - screenPlayerY;
+            if (Math.abs(dx) > 10) ax = dx * 0.07;
+            if (Math.abs(dy) > 10) ay = dy * 0.07;
+            ax = Math.max(-13, Math.min(13, ax));
+            ay = Math.max(-15, Math.min(15, ay));
+            state.player.vx = ax;
+            state.player.vy = ay;
+        } else if (state.inputType === 'keys') {
+            if (state.keys['ArrowLeft'] || state.keys['KeyA']) ax = -11;
+            if (state.keys['ArrowRight'] || state.keys['KeyD']) ax = 11;
+            if (state.keys['ArrowUp'] || state.keys['KeyW']) ay = -15;
+            if (state.keys['ArrowDown'] || state.keys['KeyS']) ay = 8;
+            state.player.vx = ax;
+            state.player.vy = ay;
+        } else if (state.inputType === 'pad') {
+            const gamepads = navigator.getGamepads();
+            for (const gp of gamepads) {
+                if (gp) {
+                    // Left Stick for movement
+                    ax = Math.abs(gp.axes[0]) > 0.1 ? gp.axes[0] * 12 : 0;
+                    ay = Math.abs(gp.axes[1]) > 0.1 ? gp.axes[1] * 14 : 0;
+                    // Boost with Bottom Face Button (A/Cross)
+                    if (gp.buttons[0].pressed) ay *= 1.5;
+                    state.player.vx = ax;
+                    state.player.vy = ay;
+                    break; 
+                }
+            }
+        }
+        state.player.x += state.player.vx;
+        state.player.y += state.player.vy;
+        state.cameraX += (state.player.x - state.cameraX) * 0.1;
+    }
+
+    function loop() {
+        if (!state.active) return;
+
+        state.timeLeft -= 1/60;
+        if (state.invincible > 0) state.invincible--;
+        handleInput();
+
+        let hall = getHall(state.player.y);
+        let limit = (hall.w / 2) - 15;
+        state.player.x = Math.max(hall.x - limit, Math.min(hall.x + limit, state.player.x));
+
+        if (state.nodes[state.nodes.length - 1].y > state.player.y - 4000) addNode();
+        if (state.nodes[0].y > state.player.y + 2000) state.nodes.shift();
+
+        // Checkpoint logic
+        if (state.player.y < state.nextGateY) {
+            state.score++;
+            // Difficulty: Time reward diminishes over time
+            const timeReward = Math.max(8, 15 - (state.score * 0.5));
+            state.timeLeft = timeReward;
+            state.nextGateY -= 3000;
+            if (state.lives < 3) state.lives++;
+        }
+
+        // Difficulty: Spawn chance increases
+        const spawnChance = 0.05 + (state.score * 0.005);
+        if (Math.random() < spawnChance) {
+            let spawnY = state.player.y - 2000;
+            let h = getHall(spawnY);
+            // Difficulty: NPC speed scales with score
+            const speedBase = 4 + (state.score * 0.4);
+            state.npcs.push({ 
+                x: h.x + (Math.random()-0.5)*(h.w - 40), 
+                y: spawnY, 
+                speed: speedBase + Math.random()*5, 
+                drift: (Math.random()-0.5)*(5 + state.score * 0.2)
+            });
+        }
+
+        state.npcs.forEach((n, i) => {
+            n.y += n.speed;
+            n.x += n.drift;
+            let nHall = getHall(n.y);
+            let nLim = (nHall.w / 2) - 12; 
+            if (n.x < nHall.x - nLim) { n.x = nHall.x - nLim; n.drift = Math.abs(n.drift); } 
+            else if (n.x > nHall.x + nLim) { n.x = nHall.x + nLim; n.drift = -Math.abs(n.drift); }
+
+            if (state.invincible <= 0 && Math.hypot(n.x - state.player.x, n.y - state.player.y) < 25) {
+                state.lives--;
+                state.invincible = 90;
+                if (state.lives <= 0) die("GAME OVER");
+            }
+            if (n.y > state.player.y + 1500) state.npcs.splice(i, 1);
+        });
+
+        if (state.timeLeft <= 0) die("OUT OF TIME");
+
+        document.getElementById('lives-val').innerText = state.lives;
+        document.getElementById('timer-val').innerText = Math.max(0, Math.ceil(state.timeLeft));
+        document.getElementById('score-val').innerText = state.score;
+
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    function die(m) {
+        state.active = false;
+        document.getElementById('death-msg').innerText = m;
+        document.getElementById('ui-death').style.display = 'flex';
+    }
+
+    function draw() {
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const viewY = state.player.y - (canvas.height * 0.7);
+        const camOffset = state.cameraX - (canvas.width / 2);
+        
+        ctx.save();
+        ctx.translate(-camOffset, -viewY);
+
+        let gh = getHall(state.nextGateY);
+        ctx.strokeStyle = '#00ff9d'; ctx.lineWidth = 15; ctx.shadowBlur = 25; ctx.shadowColor = '#00ff9d';
+        ctx.beginPath(); ctx.moveTo(gh.x - gh.w/2, state.nextGateY); ctx.lineTo(gh.x + gh.w/2, state.nextGateY); ctx.stroke();
+
+        ctx.strokeStyle = '#00f2ff'; ctx.lineWidth = 4; ctx.shadowBlur = 15; ctx.shadowColor = '#00f2ff';
+        ctx.beginPath(); state.nodes.forEach(n => ctx.lineTo(n.x - n.w/2, n.y)); ctx.stroke();
+        ctx.beginPath(); state.nodes.forEach(n => ctx.lineTo(n.x + n.w/2, n.y)); ctx.stroke();
+
+        ctx.shadowBlur = 15; ctx.shadowColor = '#ff00ff'; ctx.fillStyle = '#ff00ff';
+        state.npcs.forEach(n => {
+            ctx.beginPath(); ctx.arc(n.x, n.y, 10, 0, 7); ctx.fill();
+        });
+
+        if (state.invincible % 10 < 5) {
+            ctx.shadowBlur = 30; ctx.shadowColor = '#fff'; ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(state.player.x, state.player.y, 14, 0, 7); ctx.fill();
+        }
+
+        ctx.restore();
+    }
+</script>
+</body>
+</html>

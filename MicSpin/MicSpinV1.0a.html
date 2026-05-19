@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Silent Treatment: Artemis Zero G</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: #0b0c10 url('Background.jpg') no-repeat center center;
+            background-size: cover;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 12, 16, 0.5);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #sidebar {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 120px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #portrait {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            border: 3px solid #66fcf1;
+            margin-bottom: 15px;
+            background-size: cover;
+            background-position: center;
+            background-color: #1a1a2e;
+            box-shadow: 0 0 20px rgba(102, 252, 241, 0.4);
+            transition: background-image 0.2s ease-in-out; 
+        }
+
+        .meter-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            color: #c5c6c7;
+            text-align: center;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        #meter-container {
+            width: 22px;
+            height: 250px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #45a29e;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #meter-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background: #00ff00;
+            transform-origin: bottom;
+            transition: transform 0.1s linear, background 0.3s ease;
+        }
+
+        #timer-display {
+            position: absolute;
+            top: 5%;
+            width: 100%;
+            text-align: center;
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #66fcf1;
+            text-shadow: 0 0 20px rgba(102, 252, 241, 0.5);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #mic {
+            position: absolute;
+            width: 150px; 
+            height: 450px;
+            cursor: pointer;
+            transform: translate(-50%, -50%); 
+            will-change: transform;
+            z-index: 5;
+            background: url('Microphone.png') no-repeat center center;
+            background-size: contain;
+            filter: drop-shadow(0 0 15px rgba(0,0,0,0.8));
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 12, 16, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+
+        button { padding: 16px 50px; font-size: 1.2rem; background: #66fcf1; color: #0b0c10; border: none; cursor: pointer; text-transform: uppercase; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #45a29e; transform: scale(1.05); }
+    </style>
+</head>
+<body>
+
+    <div id="vignette"></div>
+    <div id="timer-display">0.00s</div>
+    
+    <div id="sidebar">
+        <div id="portrait"></div>
+        <div class="meter-label">Agitation Meter</div>
+        <div id="meter-container">
+            <div id="meter-fill"></div>
+        </div>
+    </div>
+
+    <div id="mic"></div>
+
+    <div id="welcome" class="overlay">
+        <h1>Artemis Zero G</h1>
+        <p>Maintain the legendary silence of the <span style="color:#66fcf1">Artemis II</span> crew. <br><br> Stationary hands won't help you here. You must strike the mic to keep the momentum going.</p>
+        <button onclick="startGame()">Commence Silence</button>
+    </div>
+
+    <div id="game-over" class="overlay" style="display:none;">
+        <h1 style="color: #ff4d4d;">Silence Broken</h1>
+        <div id="final-score" style="font-size: 2.5rem; color: #66fcf1; margin-bottom: 10px;">0.00s</div>
+        <div id="commentary" style="font-size: 1.3rem; color: #ffc107; margin-bottom: 40px; font-style: italic;"></div>
+        <button onclick="startGame()">Try Again</button>
+    </div>
+
+    <script>
+        const mic = document.getElementById('mic');
+        const meterFill = document.getElementById('meter-fill');
+        const portrait = document.getElementById('portrait');
+        const timerDisplay = document.getElementById('timer-display');
+        const welcomeScreen = document.getElementById('welcome');
+        const gameOverScreen = document.getElementById('game-over');
+
+        const moodImages = {
+            happy: 'TrumpHappy.jpg',
+            annoyed: 'TrumpAnnoyed.jpg',
+            angry: 'TrumpAngry.jpg'
+        };
+
+        // Preload to prevent lag
+        Object.values(moodImages).forEach(src => {
+            const img = new Image();
+            img.src = src;
+        });
+
+        // Tunables
+        const BUMP_MULTIPLIER = 0.8; 
+        const FRICTION = 0.992;
+        const SPIN_FRICTION = 0.985;
+
+        let isPlaying = false, animationFrame, startTime, survivalTime = 0, pleasure = 100;
+        let x, y, vx, vy, rotation, angularVelocity;
+        let isDragging = false, mousePressed = false;
+        let currentMouseX, currentMouseY, lastMouseX, lastMouseY, mouseVx = 0, mouseVy = 0;
+        let lastTime = performance.now();
+        let dragOffsetX = 0, dragOffsetY = 0;
+        let currentMood = '';
+
+        const halfW = 75, halfH = 225;
+
+        function startGame() {
+            welcomeScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            mic.style.display = 'block';
+            x = window.innerWidth / 2;
+            y = window.innerHeight / 2;
+            vx = (Math.random() - 0.5) * 5;
+            vy = (Math.random() - 0.5) * 5;
+            rotation = 0;
+            angularVelocity = 1.5;
+            pleasure = 100;
+            currentMood = ''; 
+            startTime = performance.now();
+            isPlaying = true;
+            cancelAnimationFrame(animationFrame);
+            gameLoop();
+        }
+
+        window.addEventListener('pointerdown', (e) => {
+            if (!isPlaying) return;
+            mousePressed = true;
+            if (isOverMic(e.clientX, e.clientY)) {
+                isDragging = true;
+                dragOffsetX = e.clientX - x;
+                dragOffsetY = e.clientY - y;
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            currentMouseX = e.clientX;
+            currentMouseY = e.clientY;
+        });
+
+        window.addEventListener('pointerup', () => {
+            mousePressed = false; 
+            isDragging = false;
+        });
+
+        function isOverMic(mx, my) {
+            const dx = mx - x, dy = my - y;
+            const rad = -rotation * (Math.PI / 180);
+            const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+            const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+            return (Math.abs(rx) < halfW && Math.abs(ry) < halfH);
+        }
+
+        function updateMood(newMood, color) {
+            if (currentMood !== newMood) {
+                currentMood = newMood;
+                portrait.style.backgroundImage = `url('${moodImages[newMood]}')`;
+                meterFill.style.background = color;
+            }
+        }
+
+        function gameLoop() {
+            if (!isPlaying) return;
+            
+            const now = performance.now();
+            lastTime = now;
+
+            survivalTime = (now - startTime) / 1000;
+            timerDisplay.innerText = survivalTime.toFixed(2) + 's';
+
+            if (lastMouseX !== undefined) {
+                mouseVx = (currentMouseX - lastMouseX);
+                mouseVy = (currentMouseY - lastMouseY);
+            }
+
+            if (isDragging) {
+                x = currentMouseX - dragOffsetX;
+                y = currentMouseY - dragOffsetY;
+                vx = mouseVx;
+                vy = mouseVy;
+                angularVelocity = vx * 0.4;
+            } else {
+                x += vx; y += vy; rotation += angularVelocity;
+                vx *= FRICTION; vy *= FRICTION; angularVelocity *= SPIN_FRICTION;
+
+                const sw = window.innerWidth, sh = window.innerHeight;
+                if (x < halfW || x > sw - halfW) { vx *= -0.8; x = x < halfW ? halfW : sw - halfW; }
+                if (y < halfH || y > sh - halfH) { vy *= -0.8; y = y < halfH ? halfH : sh - halfH; }
+
+                // --- CLEAN POINTER-ONLY PHYSICS ---
+                if (!mousePressed && isOverMic(currentMouseX, currentMouseY)) {
+                    // We only care about how fast the MOUSE is moving
+                    const mouseSpeed = Math.sqrt(mouseVx * mouseVx + mouseVy * mouseVy);
+
+                    if (mouseSpeed > 0.8) {
+                        const bDx = x - currentMouseX;
+                        const bDy = y - currentMouseY;
+                        const dist = Math.sqrt(bDx*bDx + bDy*bDy) || 1;
+                        
+                        // Physics derivation: Only use the pointer's kinetic input
+                        const effectiveSpeed = mouseSpeed < 1.5 ? mouseSpeed : Math.sqrt(mouseSpeed);
+                        const forceMagnitude = effectiveSpeed * BUMP_MULTIPLIER;
+                        
+                        vx += (bDx / dist) * forceMagnitude;
+                        vy += (bDy / dist) * forceMagnitude;
+                        angularVelocity += bDx * 0.15;
+                    }
+                }
+            }
+
+            mic.style.left = `${x}px`;
+            mic.style.top = `${y}px`;
+            mic.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+
+            lastMouseX = currentMouseX;
+            lastMouseY = currentMouseY;
+
+            // Agitation Logic
+            const chaos = Math.sqrt(vx*vx + vy*vy) + Math.abs(angularVelocity);
+            if (chaos > 4.5) pleasure += chaos * 0.035;
+            pleasure -= (0.18 + (survivalTime * 0.045));
+            pleasure = Math.min(100, Math.max(0, pleasure));
+
+            meterFill.style.transform = `scaleY(${pleasure / 100})`;
+
+            if (pleasure > 66) updateMood('happy', '#00ff00');
+            else if (pleasure > 33) updateMood('annoyed', '#ffd700');
+            else updateMood('angry', '#ff4d4d');
+
+            if (pleasure <= 0) return endGame();
+            animationFrame = requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            isPlaying = false;
+            mic.style.display = 'none';
+            gameOverScreen.style.display = 'flex';
+            document.getElementById('final-score').innerText = survivalTime.toFixed(2) + 's';
+            
+            const comm = document.getElementById('commentary');
+            if (survivalTime < 30) comm.innerText = '"Very low energy effort."';
+            else if (survivalTime < 63) comm.innerText = '"Not bad, but not a winner."';
+            else comm.innerText = '"Tremendous silence. The greatest ever seen."';
+        }
+    </script>
+</body>
+</html>

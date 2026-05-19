@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crowded Canyon - Branching</title>
+
+<style>
+:root {
+    --neon-cyan:#00f2ff;
+    --neon-magenta:#ff00ff;
+    --neon-green:#00ff9d;
+    --bg-dark:#0a0a0f;
+    --card-bg:rgba(20,20,30,0.8);
+}
+
+body,html{
+    margin:0;padding:0;width:100%;height:100%;
+    overflow:hidden;background:var(--bg-dark);
+    font-family:'Segoe UI',sans-serif;
+}
+
+canvas{display:block;}
+</style>
+</head>
+
+<body>
+<canvas id="g"></canvas>
+
+<script>
+const canvas=document.getElementById('g');
+const ctx=canvas.getContext('2d');
+
+function resize(){
+    canvas.width=window.innerWidth;
+    canvas.height=window.innerHeight;
+}
+window.addEventListener('resize',resize);
+resize();
+
+let state={
+    active:true,
+    player:{x:canvas.width/2,y:0,vx:0,vy:0},
+    cameraX:canvas.width/2,
+
+    lanes:[], // NEW
+    maxLanes:3,
+
+    mouse:{x:0,y:0}
+};
+
+window.addEventListener('mousemove',e=>{
+    state.mouse.x=e.clientX;
+    state.mouse.y=e.clientY;
+});
+
+function createLane(x,w){
+    let nodes=[];
+    for(let i=0;i<40;i++){
+        nodes.push({x:x,y:1000-(i*200),w:w});
+    }
+    return {nodes,alive:true};
+}
+
+function init(){
+    state.lanes=[createLane(canvas.width/2,500)];
+}
+init();
+
+function getLaneHall(lane,y){
+    let nodes=lane.nodes;
+    for(let i=0;i<nodes.length-1;i++){
+        let n1=nodes[i],n2=nodes[i+1];
+        if(y<=n1.y && y>=n2.y){
+            let p=(y-n1.y)/(n2.y-n1.y);
+            return {
+                x:n1.x+(n2.x-n1.x)*p,
+                w:n1.w+(n2.w-n1.w)*p
+            };
+        }
+    }
+    return nodes[nodes.length-1];
+}
+
+// Find closest lane
+function getActiveLane(){
+    let best=null;
+    let bestDist=999999;
+
+    state.lanes.forEach(l=>{
+        let h=getLaneHall(l,state.player.y);
+        let d=Math.abs(h.x-state.player.x);
+        if(d<bestDist){
+            bestDist=d;
+            best=l;
+        }
+    });
+
+    return best;
+}
+
+// --- SPLITTING ---
+function trySplitLane(){
+    if(state.lanes.length>=state.maxLanes) return;
+
+    if(Math.random()<0.01){
+        let base=state.lanes[Math.floor(Math.random()*state.lanes.length)];
+
+        let last=base.nodes[base.nodes.length-1];
+
+        let offset=(Math.random()<0.5?-1:1)*(150+Math.random()*150);
+
+        let newLane=createLane(last.x+offset,last.w*0.8);
+
+        state.lanes.push(newLane);
+    }
+}
+
+// --- MERGING ---
+function tryMergeLanes(){
+    for(let i=0;i<state.lanes.length;i++){
+        for(let j=i+1;j<state.lanes.length;j++){
+
+            let a=state.lanes[i];
+            let b=state.lanes[j];
+
+            let ay=getLaneHall(a,state.player.y-1000);
+            let by=getLaneHall(b,state.player.y-1000);
+
+            if(Math.abs(ay.x-by.x)<120){
+                // merge b into a
+                b.nodes.forEach((n,k)=>{
+                    if(a.nodes[k]){
+                        a.nodes[k].x=(a.nodes[k].x+n.x)/2;
+                        a.nodes[k].w=(a.nodes[k].w+n.w)/2;
+                    }
+                });
+
+                state.lanes.splice(j,1);
+                return;
+            }
+        }
+    }
+}
+
+// Extend lanes
+function extendLanes(){
+    state.lanes.forEach(l=>{
+        let last=l.nodes[l.nodes.length-1];
+
+        if(last.y>state.player.y-4000){
+            let drift=(Math.random()-0.5)*120;
+            let newX=last.x+drift;
+
+            let newW=Math.max(220,Math.min(700,last.w+(Math.random()-0.5)*80));
+
+            l.nodes.push({
+                x:newX,
+                y:last.y-200,
+                w:newW
+            });
+        }
+
+        if(l.nodes[0].y>state.player.y+2000){
+            l.nodes.shift();
+        }
+    });
+}
+
+function handleInput(){
+    let dx=state.mouse.x-state.player.x;
+    let dy=state.mouse.y-(canvas.height*0.7);
+
+    state.player.vx=dx*0.05;
+    state.player.vy=dy*0.05;
+
+    state.player.x+=state.player.vx;
+    state.player.y+=state.player.vy;
+
+    state.cameraX+= (state.player.x-state.cameraX)*0.1;
+}
+
+function constrainPlayer(){
+    let lane=getActiveLane();
+    let hall=getLaneHall(lane,state.player.y);
+
+    let limit=(hall.w/2)-15;
+
+    state.player.x=Math.max(
+        hall.x-limit,
+        Math.min(hall.x+limit,state.player.x)
+    );
+}
+
+function loop(){
+
+    handleInput();
+
+    trySplitLane();
+    tryMergeLanes();
+    extendLanes();
+    constrainPlayer();
+
+    draw();
+    requestAnimationFrame(loop);
+}
+
+function draw(){
+    ctx.fillStyle="#0a0a0f";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    const viewY=state.player.y-(canvas.height*0.7);
+    const camOffset=state.cameraX-(canvas.width/2);
+
+    ctx.save();
+    ctx.translate(-camOffset,-viewY);
+
+    // DRAW LANES
+    state.lanes.forEach(l=>{
+
+        ctx.strokeStyle="#00f2ff";
+        ctx.lineWidth=4;
+        ctx.shadowBlur=15;
+        ctx.shadowColor="#00f2ff";
+
+        ctx.beginPath();
+        l.nodes.forEach(n=>ctx.lineTo(n.x-n.w/2,n.y));
+        ctx.stroke();
+
+        ctx.beginPath();
+        l.nodes.forEach(n=>ctx.lineTo(n.x+n.w/2,n.y));
+        ctx.stroke();
+    });
+
+    // PLAYER
+    ctx.shadowBlur=30;
+    ctx.shadowColor="#fff";
+    ctx.fillStyle="#fff";
+    ctx.beginPath();
+    ctx.arc(state.player.x,state.player.y,12,0,7);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Paperclips: Absolute Dominion Engine</title>
+    <style>
+        :root {
+            --gold: #D4AF37;
+            --dark-blue: #0A192F;
+            --gop-red: #E0115F;
+            --panel-bg: rgba(10, 25, 47, 0.96);
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --twitter-blue: #1DA1F2;
+            --china-red: #DE2910;
+            --russia-blue: #0033A0;
+            --nk-purple: #8a2be2;
+            --eu-yellow: #FFCC00;
+            --tech-purple: #8b5cf6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #01040a;
+            background-image: radial-gradient(circle at 50% 50%, #051224 0%, #01040a 100%);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        #welcome-screen, #announcement-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(1, 4, 10, 0.98);
+            z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+            padding: 20px; box-sizing: border-box;
+        }
+
+        #announcement-screen { display: none; z-index: 1001; }
+
+        .welcome-card, .announcement-card {
+            max-width: 700px;
+            width: 100%;
+            background: var(--dark-blue);
+            border: 4px solid var(--gold);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 0 70px rgba(212, 175, 55, 0.35);
+        }
+
+        .welcome-card h1, .announcement-card h1 {
+            color: var(--gold);
+            font-size: 2.8rem;
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px #000;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, var(--gop-red), #b3003b);
+            color: white;
+            border: 2px solid var(--gold);
+            padding: 18px 50px;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border-radius: 35px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.6);
+            transition: all 0.2s;
+        }
+
+        .start-btn:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 30px var(--gold);
+        }
+
+        .game-container {
+            max-width: 1500px;
+            width: 100%;
+            background: var(--panel-bg);
+            border: 3px solid var(--gold);
+            border-radius: 14px;
+            padding: 30px;
+            box-shadow: 0 0 50px rgba(212, 175, 55, 0.15);
+            display: none;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 3px double var(--gold);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .level-banner {
+            background: linear-gradient(90deg, #1e3a8a, var(--gop-red));
+            padding: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border: 1px solid var(--gold);
+            font-size: 1.1rem;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        .scoreboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .score-card {
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(212,175,55,0.25);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .score-label { font-size: 0.85rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 1.5px; }
+        .score-value { font-size: 1.9rem; font-weight: bold; color: #fff; margin-top: 5px; font-family: monospace; }
+        #debt-val { color: #fc8181; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.35fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 1150px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 25px;
+            display: none; 
+        }
+
+        .panel.visible { display: block; animation: unfold 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        @keyframes unfold {
+            from { opacity: 0; transform: scale(0.99) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            color: var(--gold);
+            font-size: 1.3rem;
+            border-bottom: 1px solid rgba(212,175,55,0.25);
+            padding-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tweet-widget {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 22px;
+            border: 1px solid #1e293b;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+        }
+
+        .tweet-btn {
+            background: linear-gradient(135deg, var(--twitter-blue), #0b7cb5);
+            color: white;
+            border: none;
+            padding: 16px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(29, 161, 242, 0.25);
+            transition: all 0.1s ease;
+        }
+        .tweet-btn.btn-level-4 { text-transform: uppercase; }
+        .tweet-btn:active { transform: scale(0.98); }
+
+        .unlock-hint {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            text-align: center;
+            margin-top: 12px;
+            font-style: italic;
+            font-family: monospace;
+        }
+
+        .cabinet-container { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .active-staff-banner {
+            background: rgba(212, 175, 55, 0.07);
+            border: 1px solid var(--gold);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+
+        .candidate-market {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .candidate-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px dashed rgba(212,175,55,0.35);
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .candidate-name { font-weight: bold; color: #fff; font-size: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; }
+        .candidate-stats { font-size: 0.8rem; color: #cbd5e0; margin: 8px 0; line-height: 1.45; font-family: monospace; }
+
+        .item-list { display: grid; gap: 12px; }
+        
+        .upgrade-card {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.04);
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 15px;
+        }
+        .upgrade-card.one-time { border-left: 4px solid #6366f1; }
+        .upgrade-card.repeatable { border-left: 4px solid var(--gold); }
+        .upgrade-card.tariff { border-left: 4px solid var(--china-red); }
+        .upgrade-card.transition-project { 
+            border: 2px solid #ef4444;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(0,0,0,0.6));
+        }
+        .upgrade-card.dominion-style { 
+            border: 3px solid var(--gold); 
+            background: linear-gradient(135deg, rgba(214,175,55,0.15), rgba(0,0,0,0.8));
+            box-shadow: 0 0 25px var(--gold);
+        }
+
+        .buy-btn {
+            background: var(--gold);
+            color: #000;
+            border: none;
+            padding: 12px 18px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .buy-btn:disabled { background: #1e293b; color: #475569; cursor: not-allowed; border: 1px solid #334155; }
+        .buy-btn:not(:disabled):hover { background: #fff; box-shadow: 0 0 10px #fff; }
+
+        .stat-group { margin-bottom: 18px; }
+        .stat-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; font-family: monospace; }
+        .progress-bar { background: #0b0f19; border-radius: 8px; overflow: hidden; height: 20px; border: 1px solid #1e293b; }
+        .progress-fill { height: 100%; width: 0%; transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1); }
+
+        .event-box {
+            background: linear-gradient(135deg, #050b14, #111a2e);
+            border: 2px solid var(--gold);
+            padding: 24px;
+            border-radius: 12px;
+            min-height: 170px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .event-title { color: var(--gold); margin-top: 0; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .event-desc { font-style: italic; color: #f1f5f9; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.5; border-left: 2px solid var(--gop-red); padding-left: 10px; }
+        
+        .log-box {
+            background: #010204;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 14px; height: 150px; overflow-y: auto;
+            border-radius: 8px; color: #39ff14; font-size: 0.85rem;
+            margin-top: 20px; border: 1px solid #1e293b; line-height: 1.4;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Start Overlay Screen -->
+    <div id="welcome-screen">
+        <div class="welcome-card">
+            <h1>Executive Paperclips</h1>
+            <h3 style="color: #94a3b8; letter-spacing: 1px;">The Campaign-to-Dominion Simulator</h3>
+            <p style="line-height: 1.6; color: #e2e8f0; margin: 20px 0;">
+                Welcome to the high-velocity political metrics machine. Begin as an outsider, scale your influence, maintain administrative control, survive endless dynamic crises, and consolidate global power.<br><br>
+                <em>Warning: Vetting markets remain locked until your current appointment is vacated. Risk accordingly.</em>
+            </p>
+            <button class="start-btn" onclick="initializeSimulation()">Access Timeline</button>
+        </div>
+    </div>
+
+    <!-- Era Milestone Interstitial Screening -->
+    <div id="announcement-screen">
+        <div class="announcement-card">
+            <h1 id="announce-title">ERA ACCOMPLISHED</h1>
+            <p id="announce-body" style="line-height: 1.6; color: #e2e8f0; margin: 20px 0; font-size: 1.1rem;"></p>
+            <button class="start-btn" onclick="closeAnnouncement()">Resume Control Matrix</button>
+        </div>
+    </div>
+
+    <!-- Application Dashboard UI -->
+    <div class="game-container" id="main-ui">
+        <header>
+            <div class="level-banner" id="current-level-banner">Era 1: The Outsider Campaign Trail (2016)</div>
+            <h1>The Command Matrix</h1>
+            <div class="scoreboard-grid">
+                <div class="score-card">
+                    <div class="score-label">Liquid Executive Clout</div>
+                    <div class="score-value" id="clout-val">0</div>
+                </div>
+                <div class="score-card">
+                    <div class="score-label">System Compounding Rate</div>
+                    <div class="score-value" id="rate-val">+0.0/sec</div>
+                </div>
+                <div class="score-card">
+                    <div class="score-label">National Debt Projection</div>
+                    <div class="score-value" id="debt-val">$19,482,011,402,900</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            <div>
+                <div class="panel visible" id="widget-phone">
+                    <h2 id="phone-title">Communications Smartphone</h2>
+                    <div class="tweet-widget">
+                        <button class="tweet-btn" id="tweet-main-btn" onclick="fireWeightedTweet()">📝 Send Campaign Update</button>
+                        <div class="unlock-hint" id="unlock-hint-text">Posting directly manipulates base reality.</div>
+                    </div>
+                </div>
+
+                <div class="panel visible" id="widget-cabinet">
+                    <h2>Personnel Vetting & Boardrooms</h2>
+                    <div class="cabinet-container">
+                        <div class="active-staff-banner" id="active-staff-root">
+                            <strong>Current Asset:</strong> None (Idle)
+                        </div>
+                        <div class="candidate-market" id="candidate-market-root"></div>
+                    </div>
+                </div>
+
+                <div class="panel visible" id="widget-upgrades">
+                    <h2>Strategic Infrastructure Deck</h2>
+                    <div class="item-list" id="upgrades-root"></div>
+                </div>
+
+                <div class="panel" id="widget-tariffs">
+                    <h2>Macro Tariff War Room</h2>
+                    <div class="item-list" id="tariffs-root"></div>
+                </div>
+
+                <div class="panel" id="widget-assets">
+                    <h2>Global Enterprise Real Estate Portfolio</h2>
+                    <div class="item-list" id="assets-root"></div>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel visible" id="widget-telemetry">
+                    <h2>Adaptive Telemetry Arrays</h2>
+                    <div id="telemetry-root"></div>
+                </div>
+
+                <div class="event-box" id="event-box">
+                    <h3 class="event-title">Threat Scanning Online...</h3>
+                    <p class="event-desc">Systems verifying regional environmental parameters.</p>
+                </div>
+
+                <div class="log-box" id="log-box">[System Protocol Initiated]: Sub-ether networks secured. Ready.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================================
+        // 🛠️ GAME DATA CONFIGURATION 🛠️
+        // You can effortlessly add more upgrades, events, and metrics here!
+        // ============================================================================
+
+        const tweetDatabase = {
+            1: {
+                subs: ["Jeb", "The dishonest media", "My poll numbers", "The establishment", "Little Marco", "Lyin' Ted", "The debate moderators", "The energy inside this room"],
+                verbs: ["is totally low energy.", "are completely failing.", "is begging for donor money.", "are through the roof!", "sweat profusely under pressure.", "can't handle the truth.", "is unmatchable!"],
+                closers: ["Sad!", "Make America Great Again.", "True!", "We need a wall.", "Total disaster.", "Pathetic!", "Incredible!"]
+            },
+            2: {
+                subs: ["The Failing New York Times", "The Special Counsel", "My approval ratings", "The border situation", "Sleepy Joe", "The Do-Nothing Democrats", "The stock market indices"],
+                verbs: ["is producing total Fake News.", "has found NO COLLUSION.", "are higher than ever despite the Witch Hunt.", "requires immediate funding!", "is bad for our Country.", "refuse to secure our borders.", "are hitting spectacular records."],
+                closers: ["TOTAL DISASTER!", "A VERY STABLE GENIUS!", "WITCH HUNT!", "Covfefe.", "READ THE TRANSCRIPT!", "LAW & ORDER!", "WINNING!"]
+            },
+            3: {
+                subs: ["The Biden administration", "The corrupt tech platforms", "The midterm RINOs", "My brand new TRUTH app", "The Deep State", "The Radical Left", "The weaponized justice system"],
+                verbs: ["is destroying the economy.", "tried to silence us but failed.", "lacks the energy to lead this movement.", "is number one in the App Store!", "is spying on my campaigns.", "wants to ruin the suburbs.", "is backfiring beautifully."],
+                closers: ["UNPROFESSIONAL!", "The great recovery begins!", "STOP THE BIAS!", "TRUTH!", "ELECTION INTERFERENCE!", "WAKE UP AMERICA!", "MAGA 2024!"]
+            },
+            4: {
+                subs: ["THE BRUSSELS BUREAUCRATS", "BEIJING CURRENCY WARLORDS", "PYONGYANG ROCKET TEAMS", "THE GLOBALIST CABAL", "THE MARTIAN COLONIES", "SILICON VALLEY OVERLORDS", "THE ANTARCTIC CRYPTO FARMS"],
+                verbs: ["WANT TO REGULATE OUR CYBER REAL ESTATE", "TREMBLE AT OUR 400% AUTO SURCHARGES", "ARE BEGGING FOR A MEETING IN GENEVA", "SURRENDERED THEIR ALGORITHMS", "PAID FOR THE SPACE WALL", "HAVE WIPED OUT IN FLIGHT"],
+                closers: ["DOMINION APPROACHES!", "MASSIVE MULTIPLIERS!", "ABSOLUTE AUTHORITY!", "NO MERCY!", "TOTAL PLANETARY CONTROL!", "GLORIOUS YIELDS!"]
+            }
+        };
+
+        const masterCabinetRoster = [
+            // Level 1
+            { id: "s1", name: "Grassroots Data Manager", rate: 2, modTarget: "panic", modVal: 5, cost: 20, level: 1 },
+            { id: "s2", name: "Rally Logistics Director", rate: 4, modTarget: "loyalty", modVal: 5, cost: 45, level: 1 },
+            { id: "s3", name: "Debate Prep Aggravator", rate: 7, modTarget: "panic", modVal: 10, cost: 90, level: 1 },
+            { id: "s_nepotism", name: "Nepotism Hire (Son-in-Law)", rate: 12, modTarget: "loyalty", modVal: -5, cost: 150, level: 1 },
+            { id: "s_mattress", name: "Local Mattress King (Mega Donor)", rate: 15, modTarget: "loyalty", modVal: 2, cost: 200, level: 1 },
+            { id: "s_talkshow", name: "AM Radio Host", rate: 22, modTarget: "panic", modVal: 12, cost: 350, level: 1 },
+            
+            // Level 2
+            { id: "s4", name: "The Mooch (11-Day Contract)", rate: 35, modTarget: "dcPanic", modVal: -10, cost: 500, level: 2 },
+            { id: "s5", name: "Tariff Mathematics Analyst", rate: 60, modTarget: "chinaFriction", modVal: 15, cost: 850, level: 2 },
+            { id: "s6", name: "Space Force General", rate: 95, modTarget: "russiaFriction", modVal: 10, cost: 1600, level: 2 },
+            { id: "s_acting", name: "Acting-Acting Secretary of State", rate: 130, modTarget: "dcPanic", modVal: 15, cost: 2400, level: 2 },
+            { id: "s_pillow", name: "Pillow Tycoon Confidant", rate: 190, modTarget: "loyalty", modVal: 25, cost: 3800, level: 2 },
+            { id: "s_ink", name: "Personal Executive Lawyer", rate: 270, modTarget: "dcPanic", modVal: 35, cost: 5500, level: 2 },
+            
+            // Level 3
+            { id: "s7", name: "Four Seasons Landscaping Mngr", rate: 350, modTarget: "dcPanic", modVal: -20, cost: 7000, level: 3 },
+            { id: "s8", name: "Truth Platform Dev Ops Lead", rate: 550, modTarget: "techFriction", modVal: -25, cost: 11000, level: 3 },
+            { id: "s9", name: "Midterm Election Denier", rate: 850, modTarget: "loyalty", modVal: 15, cost: 18000, level: 3 },
+            { id: "s_kraken", name: "The Kraken Unleasher", rate: 1300, modTarget: "techFriction", modVal: 20, cost: 28000, level: 3 },
+            { id: "s_crypto", name: "Bitcoin Grifter Bro", rate: 1900, modTarget: "loyalty", modVal: -10, cost: 42000, level: 3 },
+            { id: "s_podcaster", name: "Alphanumeric Bro-Podcaster", rate: 2800, modTarget: "techFriction", modVal: 40, cost: 65000, level: 3 },
+
+            // Level 4
+            { id: "s10", name: "AI Quantum Auto-Tweeter", rate: 6000, modTarget: "euFriction", modVal: 25, cost: 110000, level: 4 },
+            { id: "s11", name: "Sentient Mar-a-Lago Server", rate: 15000, modTarget: "nkFriction", modVal: -30, cost: 300000, level: 4 },
+            { id: "s_bannon", name: "Cyborg Campaign Strategist", rate: 30000, modTarget: "euFriction", modVal: 40, cost: 750000, level: 4 },
+            { id: "s_musk", name: "Martian Tech Billionaire", rate: 60000, modTarget: "techFriction", modVal: -50, cost: 1500000, level: 4 },
+            { id: "s_ai_pres", name: "Holographic Chief of Staff", rate: 120000, modTarget: "dcPanic", modVal: -60, cost: 4000000, level: 4 }
+        ];
+
+        let upgradesDeck = [
+            // Level 1
+            { id: "up_tower", name: "Golden Escalator Descent", baseCost: 15, count: 0, max: 1, level: 1, type: "one-time", desc: "+10% Voter Loyalty.", effect: () => { state.metrics.loyalty = Math.min(100, state.metrics.loyalty + 10); } },
+            { id: "up_taco", name: "Taco Bowl Photo Op", baseCost: 35, count: 0, max: 1, level: 1, type: "one-time", desc: "Drops panic by 10 points.", effect: () => { state.metrics.panic = Math.max(0, state.metrics.panic - 10); } },
+            { id: "up_red_hats", name: "Mass Distribute Red Caps", baseCost: 50, count: 0, max: Infinity, level: 1, type: "repeatable", rateBonus: 2, desc: "Fires up the base production metrics directly." },
+            { id: "up_nickname", name: "Invent Catchy Nickname", baseCost: 120, count: 0, max: Infinity, level: 1, type: "repeatable", rateBonus: 5, desc: "Assign low-energy labels to opponents." },
+            { id: "up_interns", name: "Unpaid Meme Interns", baseCost: 250, count: 0, max: Infinity, level: 1, type: "repeatable", rateBonus: 12, desc: "Automate social media shitposting." },
+            { id: "up_airforce_one", name: "Lease Custom Campaign Jet", baseCost: 600, count: 0, max: 1, level: 1, type: "one-time", desc: "+25/s baseline speed boost.", effect: () => { state.baseCloutRate += 25; } },
+            
+            // Era 1 -> 2 Milestone
+            { id: "proj_win_2016", name: "🔥 PROJECT: SECURE THE 2016 ELECTORAL COLLEGE", baseCost: 2000, count: 0, max: 1, level: 1, type: "transition-project", desc: "Shatter the conventional blue wall and capture the presidency.", effect: () => { triggerLevelTransition(2); } },
+
+            // Level 2
+            { id: "up_coke", name: "Install Diet Coke Button", baseCost: 800, count: 0, max: 1, level: 2, type: "one-time", desc: "Permanent +40/s caffeine rush.", effect: () => { state.baseCloutRate += 40; } },
+            { id: "up_fast_food", name: "Host Fast Food Banquet", baseCost: 1400, count: 0, max: 1, level: 2, type: "one-time", desc: "Slashes DC Panic by 25 points.", effect: () => { state.metrics.dcPanic = Math.max(0, state.metrics.dcPanic - 25); } },
+            { id: "up_sharpie", name: "Procure Executive Sharpie", baseCost: 2000, count: 0, max: Infinity, level: 2, type: "repeatable", rateBonus: 55, desc: "Manually re-draw bureaucratic maps to assert dominance." },
+            { id: "up_space_force", name: "Inaugurate Space Force", baseCost: 4500, count: 0, max: 1, level: 2, type: "one-time", desc: "Increases rate by +120/s. Increases Russia/China friction.", effect: () => { state.baseCloutRate += 120; state.metrics.chinaFriction += 15; state.metrics.russiaFriction += 15; } },
+            { id: "up_infrastructure", name: "Infrastructure Week Declaration", baseCost: 8000, count: 0, max: Infinity, level: 2, type: "repeatable", rateBonus: 150, desc: "Endlessly declare a infrastructure renaissance." },
+
+            // Era 2 -> 3 Milestone
+            { id: "proj_survive_2020", name: "🔥 PROJECT: SURVIVE THE 2020 CHAOS LOG", baseCost: 30000, count: 0, max: 1, level: 2, type: "transition-project", desc: "Absorb the structural disruptions and pivot into alternative operations.", effect: () => { triggerLevelTransition(3); } },
+
+            // Level 3
+            { id: "up_truth", name: "Launch TRUTH Network", baseCost: 12000, count: 0, max: 1, level: 3, type: "one-time", desc: "Permanent +250/sec baseline injection. Drops tech friction.", effect: () => { state.baseCloutRate += 250; state.metrics.techFriction = Math.max(0, state.metrics.techFriction - 40); } },
+            { id: "up_nft", name: "Mint Digital Trading Cards", baseCost: 22000, count: 0, max: Infinity, level: 3, type: "repeatable", rateBonus: 300, desc: "Extract raw capital directly from loyalist wallets." },
+            { id: "up_golf", name: "Extended Golf Retreat", baseCost: 35000, count: 0, max: Infinity, level: 3, type: "repeatable", rateBonus: 500, desc: "Recuperate energy for the comeback run." },
+            { id: "up_sneakers", name: "Gold Sneakers Merch Drop", baseCost: 55000, count: 0, max: Infinity, level: 3, type: "repeatable", rateBonus: 900, desc: "Hustle culture meets political fundraising." },
+            { id: "up_rally_spree", name: "Continuous Arena Comeback Tour", baseCost: 90000, count: 0, max: Infinity, level: 3, type: "repeatable", rateBonus: 1600, desc: "Fill stadiums continuously to shock media counters." },
+
+            // Era 3 -> 4 Milestone
+            { id: "proj_win_2024", name: "🔥 PROJECT: COMMENCE HISTORIC 2024 RESURGENCE", baseCost: 140000, count: 0, max: 1, level: 3, type: "transition-project", desc: "Sweep back into control with definitive mandates.", effect: () => { triggerLevelTransition(4); } },
+
+            // Level 4
+            { id: "up_greenland", name: "Purchase Greenland", baseCost: 200000, count: 0, max: 1, level: 4, type: "one-time", desc: "Drops EU friction by 40 points.", effect: () => { state.metrics.euFriction = Math.max(0, state.metrics.euFriction - 40); } },
+            { id: "up_un", name: "Turn U.N. into Golf Course", baseCost: 500000, count: 0, max: 1, level: 4, type: "one-time", desc: "Permanent +6000/s. Maxes out global friction.", effect: () => { state.baseCloutRate += 6000; state.metrics.euFriction = 100; state.metrics.chinaFriction = 100; } },
+            { id: "up_bunkers", name: "Gold-Plated Server Bunkers", baseCost: 800000, count: 0, max: Infinity, level: 4, type: "repeatable", rateBonus: 6500, desc: "Hardens the digital framework against breaches." },
+            { id: "up_laser", name: "Space Force Laser Array", baseCost: 1500000, count: 0, max: Infinity, level: 4, type: "repeatable", rateBonus: 15000, desc: "Orbital intimidation tactics." },
+            { id: "up_clonetech", name: "Clone Campaign Spokespeople", baseCost: 4000000, count: 0, max: Infinity, level: 4, type: "repeatable", rateBonus: 40000, desc: "A flawless, tireless array of talking heads." }
+        ];
+
+        let tariffsDeck = [
+            { id: "tf_china", name: "45% Surcharge on Beijing Tech", baseCost: 80000, count: 0, desc: "Output x1.35. (+20 China Friction)", effect: () => { state.tariffMultiplier *= 1.35; state.metrics.chinaFriction += 20; } },
+            { id: "tf_eu", name: "Countervailing Duties on Luxury EU Goods", baseCost: 250000, count: 0, desc: "Output x1.5. (+25 EU Friction)", effect: () => { state.tariffMultiplier *= 1.5; state.metrics.euFriction += 25; } },
+            { id: "tf_mars", name: "Interplanetary Export Tax", baseCost: 1000000, count: 0, desc: "Output x2.0. (+50 Tech Friction)", effect: () => { state.tariffMultiplier *= 2.0; state.metrics.techFriction += 50; } }
+        ];
+
+        let assetsDeck = [
+            { id: "ast_maralago", name: "Mar-a-Lago Helipad Hubs", baseCost: 350000, count: 0, rateBonus: 8500, desc: "Secures high-tier regional hosting lines." },
+            { id: "ast_quantum_network", name: "Quantum MAGA-Net Satellite", baseCost: 1800000, count: 0, rateBonus: 45000, desc: "Automates multi-click processes at orbital layer." },
+            { id: "ast_moon", name: "Lunar Base Alpha", baseCost: 5000000, count: 0, rateBonus: 150000, desc: "The ultimate offshore real estate." }
+        ];
+
+        const crisisThreatDeck = [
+            // Level 1
+            { id: "c1", level: 1, title: "Debate Hostility", desc: "A hostile moderator targets you with unfair debate questions.", cost: 80, resolveLog: "Attacked the moderator's ratings. The base loved it." },
+            { id: "c2", level: 1, title: "Small Hands Allegation", desc: "A primary rival implies your hands are comically small. Panic rises.", cost: 150, resolveLog: "Guaranteed there is 'no problem' on national TV." },
+            { id: "c3", level: 1, title: "Audio Leak", desc: "An old hot-mic tape surfaces causing opponents to demand you drop out.", cost: 350, resolveLog: "Deflected it as locker room talk. Opponents looked weak." },
+            { id: "c_fly", name: "Teleprompter Structural Failure", desc: "The teleprompter breaks mid-rally during a lightning storm.", cost: 600, resolveLog: "Ad-libbed for two complete hours. Crowds completely mesmerized.", level: 1 },
+            
+            // Level 2
+            { id: "c4", level: 2, title: "Special Counsel Appointed", desc: "The DOJ appoints a special counsel to investigate campaign backchannels.", cost: 1200, resolveLog: "Screamed 'WITCH HUNT' for 18 months. Survived." },
+            { id: "c5", level: 2, title: "Covfefe Typo Anomalies", desc: "A late-night typo causes algorithmic confusion in global financial markets.", cost: 2500, resolveLog: "Claimed only a small group of people knew exactly what it meant." },
+            { id: "c6", level: 2, title: "Government Shutdown", desc: "Congress refuses to fund the wall, halting government services.", cost: 4500, resolveLog: "Diverted military construction funds using executive authority." },
+            { id: "c_ink_leak", level: 2, title: "Hair Dye Cascade", desc: "Your attorney's hair dye starts running down his face during a major presser.", cost: 7500, resolveLog: "Claimed it was sweat from fighting the deep state so vigorously." },
+
+            // Level 3
+            { id: "c7", level: 3, title: "Mainstream Deplatforming", desc: "Silicon Valley monopolies sever your access to the public square.", cost: 12000, resolveLog: "Accelerated TRUTH social development. Built our own square." },
+            { id: "c8", level: 3, title: "Bathroom Document Raid", desc: "Federal agents raid a resort bathroom searching for classified box stacks.", cost: 28000, resolveLog: "Fundraised off the raid immediately. Clout skyrocketed." },
+            { id: "c9", level: 3, title: "Midterm Disappointment", desc: "Endorsed candidates underperform, causing the establishment to blame you.", cost: 45000, resolveLog: "Blamed the RINOs for weak campaigning. Solidified grip." },
+            { id: "c_indict", level: 3, title: "Mugshot Optimization Event", desc: "State prosecutors file an indictment, requiring an official mugshot booking.", cost: 80000, resolveLog: "Printed the mugshot onto t-shirts, raising $10M in 48 hours.", level: 3 },
+
+            // Level 4
+            { id: "c10", level: 4, title: "BRICS Currency Push", desc: "Adversaries attempt to establish a rival to the US Dollar.", cost: 180000, resolveLog: "Slapped 100% tariffs on any nation abandoning the Dollar." },
+            { id: "c11", level: 4, title: "Moon Declares Independence", desc: "Lunar mining colonies refuse to pay the universal dominion tax.", cost: 600000, resolveLog: "Threatened to turn off their oxygen subscriptions. They paid." },
+            { id: "c12", level: 4, title: "European AI Blockade", desc: "Brussels regulators attempt to ban your automated cyber-dominion algorithms.", cost: 1400000, resolveLog: "Threatened to withdraw NATO funding unilaterally. EU folded." },
+            { id: "c_deepfake", level: 4, title: "Quantum Deepfake Hack", desc: "A synthesis hack broadcasts a fake concession speech across sub-ether nodes.", cost: 3000000, resolveLog: "Countersigned a decree declaring reality itself classified. Fixed." }
+        ];
+
+        // ============================================================================
+        // ⚙️ CORE ENGINE LOGIC ⚙️
+        // ============================================================================
+
+        const metricDefs = {
+            loyalty: { name: "Base Voter Loyalty", color: "#22c55e", activeIn: [1,2,3,4] },
+            panic: { name: "Primary Opponent Panic", color: "#f97316", activeIn: [1] },
+            dcPanic: { name: "D.C. Establishment Panic", color: "#ef4444", activeIn: [2,3,4] },
+            chinaFriction: { name: "Beijing Trade Friction", color: "var(--china-red)", activeIn: [2,4] },
+            techFriction: { name: "Silicon Valley Suppression", color: "var(--tech-purple)", activeIn: [3,4] },
+            russiaFriction: { name: "Moscow Backchannel Friction", color: "var(--russia-blue)", activeIn: [2,4] },
+            nkFriction: { name: "Pyongyang Isolation Factor", color: "var(--nk-purple)", activeIn: [4] },
+            euFriction: { name: "Brussels Regulatory Friction", color: "var(--eu-yellow)", activeIn: [4] }
+        };
+
+        let state = {
+            currentLevel: 1, 
+            clout: 0,
+            lifetimeClout: 0,
+            baseCloutRate: 0,
+            tariffMultiplier: 1.0,
+            nationalDebt: 19482011402900,
+            metrics: { loyalty: 50, panic: 15, dcPanic: 10, chinaFriction: 10, techFriction: 10, russiaFriction: 10, nkFriction: 10, euFriction: 10 },
+            activeStaff: null,
+            marketCandidates: [],
+            resolvedCrises: [],
+            milestones: { finalDominionReady: false }
+        };
+
+        const eraAnnouncements = {
+            2: {
+                title: "🇺🇸 2016 Victory Achieved!",
+                body: "Against all algorithmic logic and established political trends, you have broken the blue barrier and secured the 2016 Election. The East Wing mainframe is yours.<br><br><strong>New System Modifiers Active:</strong> Washington D.C. Panic tracking enabled. Tariffs engine active. Your old campaign recruitment deck has been purged for high-level administration staff."
+            },
+            3: {
+                title: "📉 The Exile & Digital Resurgence",
+                body: "Term 1 has wrapped under intense structural stress. Severed from conventional platforms by corporate tech monoliths, you retreat to Florida to assemble a brand new distribution matrix from scratch.<br><br><strong>New System Modifiers Active:</strong> Silicon Valley Suppression index triggered. Communications shifted exclusively to the TRUTH pipeline."
+            },
+            4: {
+                title: "🦅 The Restoration Singularity",
+                body: "The comeback campaign is realized. Sweeping back into Washington with absolute mandates, your matrix scales globally. Total sovereign authority is within reach.<br><br><strong>New System Modifiers Active:</strong> All planetary friction parameters live. Global asset acquisitions and full trade penalties initialized."
+            }
+        };
+
+        function initializeSimulation() {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'block';
+
+            renderTelemetryFrames();
+            generateMarketCandidates();
+            renderCabinet();
+            renderUpgrades();
+            renderTariffs();
+            renderAssets();
+            displayActiveThreat();
+
+            setInterval(() => {
+                let currentTotalRate = (state.baseCloutRate + (state.activeStaff ? state.activeStaff.rate : 0)) * state.tariffMultiplier;
+                state.clout += currentTotalRate;
+                state.lifetimeClout += currentTotalRate;
+
+                let activeCrisis = getActiveCrisis();
+                if (activeCrisis) {
+                    if (state.currentLevel === 1) state.metrics.panic = Math.min(100, state.metrics.panic + 0.5);
+                    else state.metrics.dcPanic = Math.min(100, state.metrics.dcPanic + 0.5);
+                }
+
+                checkDominionVictoryConditions();
+                updateTelemetryDisplay();
+                enforceSystemBoundaries();
+            }, 1000);
+
+            setInterval(() => {
+                state.nationalDebt += Math.floor(Math.random() * 140000) + 50000;
+                document.getElementById('debt-val').innerText = `$${state.nationalDebt.toLocaleString()}`;
+            }, 65);
+        }
+
+        function getCost(item) {
+            return Math.floor(item.baseCost * Math.pow(1.68, item.count));
+        }
+
+        function renderTelemetryFrames() {
+            const root = document.getElementById('telemetry-root');
+            root.innerHTML = '';
+
+            for (const [key, def] of Object.entries(metricDefs)) {
+                if (def.activeIn.includes(state.currentLevel)) {
+                    root.innerHTML += `
+                        <div class="stat-group" id="stat-group-${key}">
+                            <div class="stat-label">
+                                <span>${def.name}</span>
+                                <span id="${key}-txt">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div id="${key}-bar" class="progress-fill" style="background-color: ${def.color};"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function triggerLevelTransition(targetLevel) {
+            state.currentLevel = targetLevel;
+            
+            // Core mechanics requested: Clear the vetting roster completely on level up
+            state.marketCandidates = [];
+            
+            const banner = document.getElementById('current-level-banner');
+            const phoneTitle = document.getElementById('phone-title');
+            const tweetBtn = document.getElementById('tweet-main-btn');
+
+            if (state.currentLevel === 2) {
+                banner.innerText = "Era 2: First Term Matrix & Executive Decrees (2017-2020)";
+                tweetBtn.innerText = "📝 Issue Presidential Tweet";
+            } else if (state.currentLevel === 3) {
+                banner.innerText = "Era 3: The Intermission & Social Media Exile (2021-2024)";
+                phoneTitle.innerText = "Truth Social Desktop Interface";
+                tweetBtn.innerText = "Post TRUTH Storm";
+            } else if (state.currentLevel === 4) {
+                banner.innerText = "Era 4: Absolute Sovereign Consolidation (Global Endgame)";
+                phoneTitle.innerText = "Global Matrix Command Core";
+                tweetBtn.innerText = "Broadcast Intercontinental Dictum";
+                tweetBtn.classList.add('btn-level-4');
+                document.getElementById('widget-tariffs').classList.add('visible');
+                document.getElementById('widget-assets').classList.add('visible');
+            }
+
+            // Fire full interstitial announcement layout
+            const config = eraAnnouncements[targetLevel];
+            if (config) {
+                document.getElementById('announce-title').innerHTML = config.title;
+                document.getElementById('announce-body').innerHTML = config.body;
+                document.getElementById('announcement-screen').style.display = 'flex';
+            }
+
+            pushLog(`⚙️ TIME ADVANCEMENT: Transitioned successfully to Era ${state.currentLevel}. Vetting channels scrubbed.`);
+            
+            renderTelemetryFrames();
+            generateMarketCandidates();
+            renderCabinet();
+            renderUpgrades();
+            displayActiveThreat();
+        }
+
+        function closeAnnouncement() {
+            document.getElementById('announcement-screen').style.display = 'none';
+        }
+
+        function checkDominionVictoryConditions() {
+            if (state.currentLevel !== 4 || state.milestones.finalDominionReady) return;
+
+            let totalRate = (state.baseCloutRate + (state.activeStaff ? state.activeStaff.rate : 0)) * state.tariffMultiplier;
+            let unboughtUpgrades = upgradesDeck.filter(u => u.level === 4 && u.count === 0);
+
+            if (state.clout >= 15000000 && totalRate >= 150000 && unboughtUpgrades.length === 0) {
+                state.milestones.finalDominionReady = true;
+                pushLog("🚨 SYSTEM NOTICE: CRITICAL ACCUMULATION DETECTED. PROJECT 'GLOBAL DOMINION' HAS INITIALIZED.");
+                renderUpgrades();
+            }
+        }
+
+        function fireWeightedTweet() {
+            const db = tweetDatabase[state.currentLevel];
+            const s = db.subs[Math.floor(Math.random() * db.subs.length)];
+            const v = db.verbs[Math.floor(Math.random() * db.verbs.length)];
+            const c = db.closers[Math.floor(Math.random() * db.closers.length)];
+
+            let completedString = `${s} ${v} ${c}`;
+            if (state.currentLevel === 1) completedString = completedString.charAt(0).toUpperCase() + completedString.slice(1);
+            if (state.currentLevel === 4) completedString = completedString.toUpperCase();
+            
+            let generationClickPower = state.currentLevel * 6;
+            state.clout += generationClickPower;
+            state.lifetimeClout += generationClickPower;
+
+            state.metrics.loyalty = Math.min(100, state.metrics.loyalty + (Math.floor(Math.random() * 3) + 1));
+            
+            if(state.currentLevel === 1) {
+                state.metrics.panic = Math.min(100, state.metrics.panic + (Math.floor(Math.random() * 4) - 1));
+            } else if (state.currentLevel >= 2) {
+                state.metrics.dcPanic = Math.min(100, state.metrics.dcPanic + (Math.floor(Math.random() * 4) - 1));
+            }
+
+            pushLog(`Broadcast: "${completedString}"`);
+            updateTelemetryDisplay();
+        }
+
+        function generateMarketCandidates() {
+            // Only backfill options up to 3 if active staff is empty.
+            if (state.activeStaff !== null) return;
+
+            let eligible = masterCabinetRoster.filter(c => c.level === state.currentLevel);
+            let currentIds = state.marketCandidates.map(c => c.id);
+            
+            let missingSpots = 3 - state.marketCandidates.length;
+            
+            if (missingSpots > 0) {
+                let availableToAdd = eligible.filter(c => !currentIds.includes(c.id));
+                availableToAdd = availableToAdd.sort(() => 0.5 - Math.random());
+                
+                for (let i = 0; i < Math.min(missingSpots, availableToAdd.length); i++) {
+                    state.marketCandidates.push(JSON.parse(JSON.stringify(availableToAdd[i])));
+                }
+            }
+        }
+
+        function hireCandidate(idx) {
+            let choice = state.marketCandidates[idx];
+            if (state.clout >= choice.cost) {
+                state.clout -= choice.cost;
+                state.activeStaff = choice;
+
+                if(state.metrics[choice.modTarget] !== undefined) {
+                    state.metrics[choice.modTarget] = Math.max(0, Math.min(100, state.metrics[choice.modTarget] + choice.modVal));
+                }
+
+                pushLog(`Boardroom Clear: ${choice.name} appointed to core council.`);
+                
+                // When hired, candidates roster completely empties out to hide upcoming picks
+                state.marketCandidates = [];
+
+                renderCabinet();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function dismissStaff(method) {
+            if (!state.activeStaff) return;
+            
+            if (method === 'fired') {
+                pushLog(`You slammed the desk and screamed 'YOU'RE FIRED!' to ${state.activeStaff.name}. Roster now visible.`);
+                if(state.currentLevel === 1) state.metrics.panic = Math.min(100, state.metrics.panic + 12);
+                else state.metrics.dcPanic = Math.min(100, state.metrics.dcPanic + 12);
+            } else {
+                pushLog(`You forced a resignation via social post. Vetting room unlocked.`);
+            }
+
+            state.activeStaff = null;
+            
+            // Candidates are only populated and visible when the position is vacant
+            generateMarketCandidates();
+            renderCabinet();
+            updateTelemetryDisplay();
+        }
+
+        function renderCabinet() {
+            const activeRoot = document.getElementById('active-staff-root');
+            if (state.activeStaff) {
+                activeRoot.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div style="display:flex; justify-content:between; align-items:center; width:100%;">
+                            <div><strong>Active Appointment:</strong> ${state.activeStaff.name} (+${state.activeStaff.rate}/s)</div>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <button class="buy-btn" style="background:#dc2626; color:#fff; padding:6px 10px; font-size:0.75rem;" onclick="dismissStaff('fired')">Scream "You're Fired!"</button>
+                            <button class="buy-btn" style="background:#d97706; color:#fff; padding:6px 10px; font-size:0.75rem;" onclick="dismissStaff('leaked')">Force Resignation</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                activeRoot.innerHTML = `<strong>Active Appointment:</strong> <span style="color:#f87171;">Vacant Room (Administration bleed risk)</span>`;
+            }
+
+            const marketRoot = document.getElementById('candidate-market-root');
+            marketRoot.innerHTML = '';
+
+            // Core requirement: Candidates are completely invisible if a person is currently hired
+            if (state.activeStaff !== null) {
+                marketRoot.innerHTML = `<p style="font-size:0.85rem; color:#94a3b8; margin:0; font-style:italic; text-align:center; width:100%; padding:15px; border:1px dashed #334155; border-radius:6px;">[Vetting Data Restricted: Terminate current advisor to open applications deck]</p>`;
+                return;
+            }
+
+            if (state.marketCandidates.length === 0) {
+                marketRoot.innerHTML = `<p style="font-size:0.8rem; color:#94a3b8; margin:0;">No applicants currently processing clearance in this era.</p>`;
+                return;
+            }
+
+            state.marketCandidates.forEach((cand, idx) => {
+                let modText = (cand.modVal > 0 ? '+' : '') + cand.modVal;
+                let targetName = metricDefs[cand.modTarget] ? metricDefs[cand.modTarget].name : cand.modTarget;
+                marketRoot.innerHTML += `
+                    <div class="candidate-card">
+                        <div>
+                            <div class="candidate-name">${cand.name}</div>
+                            <div class="candidate-stats">
+                                Yield: +${cand.rate}/sec<br>
+                                Effect: ${targetName} (${modText})
+                            </div>
+                        </div>
+                        <button class="buy-btn" style="padding:6px; font-size:0.75rem; margin-top:8px;" id="btn-hire-${idx}" onclick="hireCandidate(${idx})">Appoint (${cand.cost})</button>
+                    </div>
+                `;
+            });
+        }
+
+        function renderUpgrades() {
+            const root = document.getElementById('upgrades-root');
+            root.innerHTML = '';
+
+            let available = upgradesDeck.filter(u => u.level === state.currentLevel && u.count < u.max);
+            
+            available.forEach(up => {
+                let cost = getCost(up);
+                root.innerHTML += `
+                    <div class="upgrade-card ${up.type}">
+                        <div style="max-width: 70%;">
+                            <strong>${up.name}</strong><br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">${up.desc}</span>
+                        </div>
+                        <button class="buy-btn" id="btn-up-${up.id}" onclick="executeUpgrade('${up.id}')">Execute (${cost})</button>
+                    </div>
+                `;
+            });
+
+            if (state.milestones.finalDominionReady) {
+                root.innerHTML += `
+                    <div class="upgrade-card dominion-style">
+                        <div style="max-width: 65%;">
+                            <strong style="color:var(--gold); font-size:1.1rem;">👁️ PROJECT GLOBAL DOMINION</strong><br>
+                            <span style="font-size:0.85rem; color:#fff;">Transition the entire geopolitical apparatus into a singular global governing singularity. Universal victory condition.</span>
+                        </div>
+                        <button class="buy-btn" style="background:#fff; color:#000;" id="btn-up-dominion" onclick="triggerAbsoluteVictory()">Seize Earth (15M)</button>
+                    </div>
+                `;
+            }
+        }
+
+        function executeUpgrade(id) {
+            let item = upgradesDeck.find(u => u.id === id);
+            let cost = getCost(item);
+            if (state.clout >= cost) {
+                state.clout -= cost;
+                item.count++;
+
+                if (item.type === 'repeatable') {
+                    state.baseCloutRate += item.rateBonus;
+                } else if (item.effect) {
+                    item.effect();
+                }
+
+                pushLog(`Program Executed: ${item.name}`);
+                renderUpgrades();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function renderTariffs() {
+            const root = document.getElementById('tariffs-root');
+            root.innerHTML = '';
+            tariffsDeck.forEach(tf => {
+                let cost = getCost(tf);
+                root.innerHTML += `
+                    <div class="upgrade-card tariff">
+                        <div>
+                            <strong>${tf.name} (Rank ${tf.count})</strong><br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">${tf.desc}</span>
+                        </div>
+                        <button class="buy-btn" id="btn-tf-${tf.id}" onclick="executeTariff('${tf.id}')">Sign Surcharge (${cost})</button>
+                    </div>
+                `;
+            });
+        }
+
+        function executeTariff(id) {
+            let item = tariffsDeck.find(t => t.id === id);
+            let cost = getCost(item);
+            if (state.clout >= cost) {
+                state.clout -= cost;
+                item.count++;
+                item.effect();
+                pushLog(`Trade decree updated: ${item.name}`);
+                renderTariffs();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function renderAssets() {
+            const root = document.getElementById('assets-root');
+            root.innerHTML = '';
+            assetsDeck.forEach(ast => {
+                let cost = getCost(ast);
+                root.innerHTML += `
+                    <div class="upgrade-card repeatable">
+                        <div>
+                            <strong>${ast.name} (Qty: ${ast.count})</strong><br>
+                            <span style="font-size:0.8rem; color:#cbd5e0;">${ast.desc}</span>
+                        </div>
+                        <button class="buy-btn" id="btn-ast-${ast.id}" onclick="executeAsset('${ast.id}')">Acquire Block (${cost})</button>
+                    </div>
+                `;
+            });
+        }
+
+        function executeAsset(id) {
+            let item = assetsDeck.find(a => a.id === id);
+            let cost = getCost(item);
+            if (state.clout >= cost) {
+                state.clout -= cost;
+                item.count++;
+                state.baseCloutRate += item.rateBonus;
+                pushLog(`Asset consolidated into portfolio: ${item.name}`);
+                renderAssets();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function getActiveCrisis() {
+            return crisisThreatDeck.find(c => c.level === state.currentLevel && !state.resolvedCrises.includes(c.id));
+        }
+
+        function displayActiveThreat() {
+            const box = document.getElementById('event-box');
+            let threat = getActiveCrisis();
+            
+            if (!threat) {
+                box.innerHTML = `
+                    <h3 class="event-title" style="color:#22c55e;">✓ Historical Timeline Secure</h3>
+                    <p class="event-desc">No dynamic operational anomalies currently require capital override maneuvers in this era.</p>
+                `;
+                return;
+            }
+
+            box.innerHTML = `
+                <h3 class="event-title" style="color:var(--gop-red);">${threat.title}</h3>
+                <p class="event-desc">${threat.desc}</p>
+                <button class="buy-btn" id="btn-crisis-${threat.id}" onclick="mitigateActiveThreat('${threat.id}')">Deploy Countermeasures (Costs ${threat.cost})</button>
+            `;
+        }
+
+        function mitigateActiveThreat(threatId) {
+            let threat = crisisThreatDeck.find(c => c.id === threatId);
+            if (state.clout >= threat.cost) {
+                state.clout -= threat.cost;
+                state.resolvedCrises.push(threat.id);
+                
+                state.metrics.loyalty = Math.min(100, state.metrics.loyalty + 15);
+                if (state.currentLevel === 1) state.metrics.panic = Math.max(0, state.metrics.panic - 10);
+                else state.metrics.dcPanic = Math.max(0, state.metrics.dcPanic - 10);
+
+                pushLog(`Crisis Averted: ${threat.resolveLog}`);
+                displayActiveThreat();
+                updateTelemetryDisplay();
+            }
+        }
+
+        function updateTelemetryDisplay() {
+            document.getElementById('clout-val').innerText = Math.floor(state.clout).toLocaleString();
+            
+            let currentTotalRate = (state.baseCloutRate + (state.activeStaff ? state.activeStaff.rate : 0)) * state.tariffMultiplier;
+            document.getElementById('rate-val').innerText = `+${currentTotalRate.toLocaleString(undefined, {maximumFractionDigits: 1})}/sec`;
+
+            for (const [key, def] of Object.entries(metricDefs)) {
+                if (def.activeIn.includes(state.currentLevel)) {
+                    state.metrics[key] = Math.max(0, Math.min(100, state.metrics[key]));
+                    const txtEl = document.getElementById(`${key}-txt`);
+                    const barEl = document.getElementById(`${key}-bar`);
+                    if (txtEl && barEl) {
+                        txtEl.innerText = `${Math.floor(state.metrics[key])}%`;
+                        barEl.style.width = `${Math.floor(state.metrics[key])}%`;
+                    }
+                }
+            }
+
+            upgradesDeck.forEach(up => {
+                let btn = document.getElementById(`btn-up-${up.id}`);
+                if (btn) btn.disabled = (state.clout < getCost(up));
+            });
+            tariffsDeck.forEach(tf => {
+                let btn = document.getElementById(`btn-tf-${tf.id}`);
+                if (btn) btn.disabled = (state.clout < getCost(tf));
+            });
+            assetsDeck.forEach(ast => {
+                let btn = document.getElementById(`btn-ast-${ast.id}`);
+                if (btn) btn.disabled = (state.clout < getCost(ast));
+            });
+            state.marketCandidates.forEach((cand, idx) => {
+                let btn = document.getElementById(`btn-hire-${idx}`);
+                if (btn) btn.disabled = (state.clout < cand.cost);
+            });
+            
+            let threat = getActiveCrisis();
+            if (threat) {
+                let btn = document.getElementById(`btn-crisis-${threat.id}`);
+                if (btn) btn.disabled = (state.clout < threat.cost);
+            }
+
+            const domBtn = document.getElementById('btn-up-dominion');
+            if (domBtn) domBtn.disabled = (state.clout < 15000000);
+        }
+
+        function pushLog(msg) {
+            const box = document.getElementById('log-box');
+            box.innerHTML += `<br>[Data]: ${msg}`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function enforceSystemBoundaries() {
+            if (state.metrics.loyalty <= 2) {
+                alert("Critical Metric Loss: Approval tracking dropped below 2%. The campaign apparatus dissolved. Game Over.");
+                location.reload();
+            }
+            if (state.metrics.dcPanic >= 98 && state.currentLevel > 1) {
+                alert("Establishment Backlash: DC friction metrics reached 98%. Congressional committees successfully locked out your system profile. Game Over.");
+                location.reload();
+            }
+            if (state.metrics.euFriction >= 98 || state.metrics.chinaFriction >= 98) {
+                alert("Geopolitical Critical Vector: International friction thresholds breached 98%. Sovereign conflict blackouts initiated. Game Over.");
+                location.reload();
+            }
+        }
+
+        function triggerAbsoluteVictory() {
+            alert("UNIVERSAL VICTORY CONDITION ACHIEVED\n\nYou successfully bought Project Global Dominion. Earth's entire legal, media, and trade architecture has been unified into a singular golden, high-efficiency system loop. Universal Paperclips supremacy validated.");
+            location.reload();
+        }
+    </script>
+</body>
+</html>

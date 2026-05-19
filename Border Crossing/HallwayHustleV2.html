@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hallway Hustle: Single Loop Edition</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #111; font-family: 'Arial Black', sans-serif; }
+        canvas { display: block; cursor: crosshair; }
+        
+        #hud-container { 
+            position: absolute;
+            left: calc(50% - 225px - 140px); 
+            top: 50%;
+            transform: translateY(-50%);
+            width: 130px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 400px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.9); color: white; z-index: 10; text-align: center; }
+        .v-bar-group { display: flex; flex-direction: column; align-items: center; height: 100%; width: 55px; }
+        .v-bar-bg { width: 35px; height: 300px; background: rgba(0, 0, 0, 0.6); border: 3px solid #444; border-radius: 6px; overflow: hidden; display: flex; }
+
+        #progress-container { flex-direction: column-reverse; }
+        #progress-fill { width: 100%; height: 0%; background: #3498db; transition: height 0.1s; }
+
+        #timer-container { flex-direction: column; }
+        #timer-fill { width: 100%; height: 100%; background: #2ecc71; transition: background 0.3s; }
+        
+        .v-label { font-size: 14px; text-transform: uppercase; color: #aaa; margin-bottom: 8px; }
+        .cp-display { color: #3498db; font-size: 36px; margin-bottom: 5px; }
+        #dist-tracker { position: absolute; top: -60px; left: 0; width: 100%; text-align: center; color: white; }
+
+        .menu-grid { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .row { display: flex; gap: 15px; justify-content: center; }
+
+        button { padding: 15px 25px; font-size: 18px; cursor: pointer; background: #222; border: 2px solid #444; color: white; border-radius: 8px; transition: 0.1s; outline: none; font-family: inherit; }
+        .focused { background: #3498db !important; border-color: #fff; transform: scale(1.1); box-shadow: 0 0 20px #3498db; }
+        .selected { border: 2px solid #2ecc71; background: #111; color: #2ecc71; }
+        .revive-btn { background: #9b59b6; }
+
+        #revived-status { position: fixed; top: 20px; right: 20px; color: #e74c3c; font-size: 14px; display: none; }
+        @keyframes flash { 0% { background: #e74c3c; } 50% { background: #ff7675; } 100% { background: #e74c3c; } }
+        .urgent-fill { animation: flash 0.2s infinite; }
+    </style>
+</head>
+<body>
+
+<div id="revived-status">PRACTICE MODE (SCORE DISABLED)</div>
+
+<div id="ui-start" class="overlay">
+    <h1 style="font-size: 50px; margin-bottom: 10px;">RACE THROUGH THE HALL</h1>
+    <div class="menu-grid">
+        <div class="row">
+            <button id="btn-mouse" class="menu-item" onclick="setControls('mouse')">MOUSE</button>
+            <button id="btn-keys" class="menu-item" onclick="setControls('keys')">KEYS</button>
+            <button id="btn-pad" class="menu-item" onclick="setControls('pad')">GAMEPAD</button>
+        </div>
+        <div class="row">
+            <button id="btn-start" class="menu-item" onclick="initGame()" style="background:#2ecc71; border:none; width: 220px;">GO!</button>
+        </div>
+    </div>
+</div>
+
+<div id="ui-death" class="overlay" style="display:none">
+    <h1 id="death-reason" style="color: #e74c3c; font-size: 50px; margin-bottom: 5px;">COLLISION</h1>
+    <div id="stats-summary" style="margin-bottom: 20px;">
+        <div style="font-size: 18px; color: #aaa;">GATE</div>
+        <div id="death-gate" style="font-size: 60px; color: #3498db;">0</div>
+    </div>
+    <div class="menu-grid">
+        <button id="btn-revive" class="menu-item revive-btn" onclick="revivePlayer()">REVIVE & CONTINUE</button>
+        <button id="btn-restart" class="menu-item" onclick="initGame()">RESTART FRESH</button>
+    </div>
+</div>
+
+<div id="hud-container">
+    <div id="dist-tracker">
+        <div style="font-size: 12px; color: #aaa;">METERS</div>
+        <div id="dist" style="font-size: 28px;">0</div>
+    </div>
+    <div class="v-bar-group">
+        <div class="v-label">GATE</div>
+        <div id="cp-count" class="cp-display">0</div>
+        <div id="progress-container" class="v-bar-bg"><div id="progress-fill"></div></div>
+    </div>
+    <div class="v-bar-group">
+        <div class="v-label">TIME</div>
+        <div id="timer-val" class="cp-display" style="color:#2ecc71">!</div>
+        <div id="timer-container" class="v-bar-bg"><div id="timer-fill"></div></div>
+    </div>
+</div>
+
+<canvas id="g"></canvas>
+
+<script>
+    // --- RESTORED BALANCING VALUES ---
+    const BALANCING = {
+        PLAYER_SPEED: 12.5,
+        PLAYER_RADIUS: 13,
+        MOUSE_SMOOTHING: 140,
+        HALL_WIDTH: 450,
+        CAMERA_TRACKING_BIAS: 0.82,
+        TIME_PER_100_METERS: 15,
+        BASE_TIME_BUFFER: 10,
+        STARTING_DIST: 1200,      
+        DIST_ADD_PER_CP: 300,      
+        DIST_MAX_CAP: 6000,        
+        NPC_BASE_SPEED: 1.9,
+        NPC_SPEED_VAR: 2.2,
+        NPC_SPAWN_CHANCE_START: 0.01,
+        NPC_SPAWN_CHANCE_MAX: 0.45,
+        NPC_DENSITY_SCALE: 0.01,
+        NAV_DELAY: 15,
+        DEADZONE: 0.15
+    };
+
+    const canvas = document.getElementById('g');
+    const ctx = canvas.getContext('2d');
+    
+    let state = {
+        active: false,
+        inputType: 'mouse',
+        menuIdx: 0,
+        score: 0,
+        isRevived: false,
+        checkpoints: 0,
+        player: { x: 0, y: 0 },
+        npcs: [],
+        camY: 0,
+        mouse: { x: 0, y: 0 },
+        keys: {},
+        timeLeft: 0,
+        maxTime: 0,
+        currentCheckpointGoal: 0,
+        lastCheckpointY: 0,
+        nextCheckpointY: 0,
+        navCooldown: 0
+    };
+
+    function calculateLevelTime(distance) {
+        const meters = distance / 60;
+        return (meters / 100 * BALANCING.TIME_PER_100_METERS) + BALANCING.BASE_TIME_BUFFER;
+    }
+
+    // Input Listeners
+    window.addEventListener('keydown', e => {
+        state.keys[e.code] = true;
+        if (!state.active) handleMenuNav(e.code);
+    });
+    window.addEventListener('keyup', e => state.keys[e.code] = false);
+    window.addEventListener('mousemove', e => {
+        state.mouse.x = e.clientX;
+        state.mouse.y = e.clientY;
+    });
+
+    function setControls(type) {
+        state.inputType = type;
+        updateMenuVisuals();
+    }
+
+    function getVisibleMenuItems() {
+        const activeOverlay = document.querySelector('.overlay:not([style*="none"])');
+        return activeOverlay ? Array.from(activeOverlay.querySelectorAll('.menu-item')) : [];
+    }
+
+    function handleMenuNav(dir) {
+        if (state.navCooldown > 0) return;
+        const items = getVisibleMenuItems();
+        const isStartMenu = document.getElementById('ui-start').style.display !== 'none';
+        
+        if (isStartMenu) {
+            if (dir === 'ArrowRight' || dir === 'KeyD') { if (state.menuIdx < 2) state.menuIdx++; }
+            else if (dir === 'ArrowLeft' || dir === 'KeyA') { if (state.menuIdx > 0 && state.menuIdx < 3) state.menuIdx--; }
+            else if (dir === 'ArrowDown' || dir === 'KeyS') { if (state.menuIdx < 3) state.menuIdx = 3; }
+            else if (dir === 'ArrowUp' || dir === 'KeyW') { if (state.menuIdx === 3) state.menuIdx = 1; }
+        } else {
+            if (dir === 'ArrowDown' || dir === 'KeyS') state.menuIdx = (state.menuIdx + 1) % items.length;
+            else if (dir === 'ArrowUp' || dir === 'KeyW') state.menuIdx = (state.menuIdx - 1 + items.length) % items.length;
+        }
+
+        if (dir === 'Enter' || dir === 'Space' || dir === 'ButtonA') items[state.menuIdx].click();
+
+        state.navCooldown = BALANCING.NAV_DELAY;
+        updateMenuVisuals();
+    }
+
+    function updateMenuVisuals() {
+        const items = getVisibleMenuItems();
+        items.forEach((item, i) => {
+            item.classList.toggle('focused', i === state.menuIdx);
+            if (item.id === 'btn-' + state.inputType) item.classList.add('selected');
+            else item.classList.remove('selected');
+        });
+    }
+
+    function initGame() {
+        // NO MORE LOOP CALL HERE - WE JUST RESET THE DATA
+        document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+        document.getElementById('revived-status').style.display = 'none';
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        state.score = 0;
+        state.isRevived = false;
+        state.checkpoints = 0;
+        state.camY = 0;
+        state.player = { x: canvas.width / 2, y: canvas.height - 100 };
+        state.npcs = [];
+        state.lastCheckpointY = state.player.y;
+        state.currentCheckpointGoal = BALANCING.STARTING_DIST;
+        state.nextCheckpointY = state.player.y - state.currentCheckpointGoal;
+        state.maxTime = calculateLevelTime(state.currentCheckpointGoal);
+        state.timeLeft = state.maxTime;
+        
+        state.active = true; // This triggers the game logic inside the single loop
+        updateHUD();
+    }
+
+    function revivePlayer() {
+        document.getElementById('ui-death').style.display = 'none';
+        document.getElementById('revived-status').style.display = 'block';
+        state.isRevived = true;
+        state.timeLeft = state.maxTime; 
+        state.npcs = []; 
+        state.active = true;
+    }
+
+    function showDeathScreen(reason) {
+        state.active = false;
+        document.getElementById('ui-death').style.display = 'flex';
+        document.getElementById('death-reason').innerText = reason;
+        document.getElementById('death-gate').innerText = state.checkpoints;
+        state.menuIdx = 0;
+        updateMenuVisuals();
+    }
+
+    function updateHUD() {
+        document.getElementById('cp-count').innerText = state.checkpoints;
+        document.getElementById('dist').innerText = state.score;
+    }
+
+    function handleInput() {
+        const gp = navigator.getGamepads()[0];
+        if (state.navCooldown > 0) state.navCooldown--;
+
+        if (gp) {
+            const lx = gp.axes[0];
+            const ly = gp.axes[1];
+            
+            if (!state.active && state.navCooldown === 0) {
+                if (lx > 0.5 || gp.buttons[15].pressed) handleMenuNav('ArrowRight');
+                else if (lx < -0.5 || gp.buttons[14].pressed) handleMenuNav('ArrowLeft');
+                else if (ly > 0.5 || gp.buttons[13].pressed) handleMenuNav('ArrowDown');
+                else if (ly < -0.5 || gp.buttons[12].pressed) handleMenuNav('ArrowUp');
+                else if (gp.buttons[0].pressed) handleMenuNav('ButtonA');
+            }
+
+            if (state.active && state.inputType === 'pad') {
+                if (Math.abs(lx) > BALANCING.DEADZONE) state.player.x += lx * BALANCING.PLAYER_SPEED;
+                if (Math.abs(ly) > BALANCING.DEADZONE) state.player.y += ly * BALANCING.PLAYER_SPEED;
+            }
+        }
+
+        if (state.active) {
+            if (state.inputType === 'keys') {
+                if (state.keys['ArrowLeft'] || state.keys['KeyA']) state.player.x -= BALANCING.PLAYER_SPEED;
+                if (state.keys['ArrowRight'] || state.keys['KeyD']) state.player.x += BALANCING.PLAYER_SPEED;
+                if (state.keys['ArrowUp'] || state.keys['KeyW']) state.player.y -= BALANCING.PLAYER_SPEED;
+                if (state.keys['ArrowDown'] || state.keys['KeyS']) state.player.y += BALANCING.PLAYER_SPEED;
+            } else if (state.inputType === 'mouse') {
+                const dx = state.mouse.x - state.player.x;
+                const dy = state.mouse.y - (state.player.y - state.camY);
+                const distToMouse = Math.sqrt(dx * dx + dy * dy);
+                if (distToMouse > 2) {
+                    const speedMult = Math.min(distToMouse / BALANCING.MOUSE_SMOOTHING, 1);
+                    state.player.x += (dx / distToMouse) * (BALANCING.PLAYER_SPEED * speedMult);
+                    state.player.y += (dy / distToMouse) * (BALANCING.PLAYER_SPEED * speedMult);
+                }
+            }
+        }
+    }
+
+    // THE ONLY LOOP IN THE ENTIRE SCRIPT
+    function loop() {
+        handleInput();
+
+        if (state.active) {
+            state.timeLeft -= 1/60;
+            const timerFill = document.getElementById('timer-fill');
+            timerFill.style.height = Math.max(0, (state.timeLeft / state.maxTime) * 100) + "%";
+            document.getElementById('timer-val').innerText = Math.ceil(state.timeLeft);
+            
+            if(state.timeLeft < 4) timerFill.classList.add('urgent-fill');
+            else timerFill.classList.remove('urgent-fill');
+
+            if(state.timeLeft <= 0) {
+                showDeathScreen("OUT OF TIME");
+            } else {
+                if(state.player.y < state.nextCheckpointY) {
+                    state.checkpoints++;
+                    state.lastCheckpointY = state.nextCheckpointY;
+                    state.currentCheckpointGoal = Math.min(BALANCING.DIST_MAX_CAP, state.currentCheckpointGoal + BALANCING.DIST_ADD_PER_CP);
+                    state.nextCheckpointY -= state.currentCheckpointGoal;
+                    state.maxTime = calculateLevelTime(state.currentCheckpointGoal);
+                    state.timeLeft = state.maxTime;
+                    updateHUD();
+                }
+
+                const progress = Math.min(100, Math.max(0, ((state.lastCheckpointY - state.player.y) / state.currentCheckpointGoal) * 100));
+                document.getElementById('progress-fill').style.height = progress + "%";
+
+                const leftWall = (canvas.width/2) - (BALANCING.HALL_WIDTH/2);
+                const rightWall = (canvas.width/2) + (BALANCING.HALL_WIDTH/2);
+                state.player.x = Math.max(leftWall + BALANCING.PLAYER_RADIUS, Math.min(rightWall - BALANCING.PLAYER_RADIUS, state.player.x));
+
+                const camThreshold = canvas.height * BALANCING.CAMERA_TRACKING_BIAS;
+                if(state.player.y < state.camY + camThreshold) state.camY = state.player.y - camThreshold;
+
+                if(Math.random() < Math.min(BALANCING.NPC_SPAWN_CHANCE_MAX, BALANCING.NPC_SPAWN_CHANCE_START + (state.checkpoints * BALANCING.NPC_DENSITY_SCALE))) {
+                    state.npcs.push({
+                        x: leftWall + Math.random() * BALANCING.HALL_WIDTH,
+                        y: state.camY - 200,
+                        vx: (Math.random() - 0.5) * 3,
+                        vy: BALANCING.NPC_BASE_SPEED + Math.random() * BALANCING.NPC_SPEED_VAR,
+                        r: 12
+                    });
+                }
+
+                state.npcs.forEach((n, index) => {
+                    n.x += n.vx; n.y += n.vy;
+                    if(n.x < leftWall + n.r || n.x > rightWall - n.r) n.vx *= -1;
+                    if(Math.hypot(state.player.x - n.x, state.player.y - n.y) < (BALANCING.PLAYER_RADIUS + n.r) * 0.85) showDeathScreen("COLLIDED");
+                    if(n.y > state.camY + canvas.height + 150) state.npcs.splice(index, 1);
+                });
+
+                if(!state.isRevived) {
+                    state.score = Math.floor(Math.abs(state.player.y - (canvas.height - 100)) / 60);
+                    document.getElementById('dist').innerText = state.score;
+                }
+
+                draw(leftWall, rightWall);
+            }
+        } else {
+            // Keep drawing the background even when paused/in menu
+            const leftWall = (canvas.width/2) - (BALANCING.HALL_WIDTH/2);
+            const rightWall = (canvas.width/2) + (BALANCING.HALL_WIDTH/2);
+            draw(leftWall, rightWall);
+        }
+        
+        requestAnimationFrame(loop);
+    }
+
+    function draw(leftWall, rightWall) {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(0, -state.camY);
+        
+        ctx.fillStyle = '#fefefe';
+        ctx.fillRect(leftWall, state.camY - 200, BALANCING.HALL_WIDTH, canvas.height + 400);
+
+        // Grid lines (no center line)
+        ctx.strokeStyle = '#eee';
+        ctx.lineWidth = 1;
+        for(let i = Math.floor(state.camY/120)*120; i < state.camY + canvas.height + 120; i+=120) {
+            ctx.beginPath(); ctx.moveTo(leftWall, i); ctx.lineTo(rightWall, i); ctx.stroke();
+        }
+
+        // Checkpoint goal line
+        ctx.strokeStyle = '#3498db';
+        ctx.lineWidth = 30;
+        ctx.beginPath(); ctx.moveTo(leftWall, state.nextCheckpointY); ctx.lineTo(rightWall, state.nextCheckpointY); ctx.stroke();
+
+        ctx.fillStyle = '#e74c3c';
+        state.npcs.forEach(n => { ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2); ctx.fill(); });
+
+        ctx.fillStyle = '#3498db';
+        ctx.shadowBlur = 15; ctx.shadowColor = '#3498db';
+        ctx.beginPath(); ctx.arc(state.player.x, state.player.y, BALANCING.PLAYER_RADIUS, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    // Initialize the Canvas Size and Menus
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    updateMenuVisuals();
+
+    // Start the engine once and only once
+    loop();
+</script>
+</body>
+</html>
