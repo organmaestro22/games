@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Escape: City Streets</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            touch-action: none; 
+        }
+
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .stat {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        #status {
+            color: #2ecc71;
+            transition: color 0.3s;
+        }
+
+        #status.spotted {
+            color: #e74c3c;
+            animation: pulse 0.5s infinite;
+        }
+
+        #threat-level {
+            font-size: 18px;
+            color: #f1c40f;
+            margin-top: 5px;
+        }
+
+        #stamina-container {
+            width: 300px;
+            height: 20px;
+            background: #222;
+            border: 2px solid #555;
+            margin-top: 15px;
+        }
+
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: #3498db;
+            transition: width 0.1s linear, background-color 0.2s;
+        }
+
+        #stamina-bar.exhausted {
+            background: #e74c3c !important;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 48px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+        }
+
+        .win-title { color: #2ecc71; }
+
+        p {
+            font-size: 18px;
+            color: #ccc;
+            margin-bottom: 30px;
+            max-width: 650px;
+            line-height: 1.6;
+        }
+
+        button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: 0.2s;
+            font-family: inherit;
+            pointer-events: auto; 
+        }
+
+        button:hover {
+            background: #c0392b;
+            transform: scale(1.05);
+        }
+
+        .win-btn { background: #2ecc71; }
+        .win-btn:hover { background: #27ae60; }
+
+        #game-over-screen, #win-screen { display: none; }
+        
+        .enemy-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 25px;
+            font-size: 16px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; color: #ddd; }
+        .dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="stat" id="distance-display">Distance to Extraction: 0m</div>
+        <div class="stat" id="status">Status: UNSEEN</div>
+        <div id="threat-level">Threat: LOW</div>
+        <div id="stamina-container">
+            <div id="stamina-bar"></div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen">
+        <h1>ESCAPE FROM ICE</h1>
+        <p>Run, amigo, run! Reach the <b>Extraction Point</b> 3,000m away.<br><br>
+        Use <b>W A S D</b> to sneak. Hold <b>SHIFT</b> to sprint.<br>
+        <b>Stealth matters:</b> Enemies have vision cones. Sneak behind them.<br>
+        <b>Noise mechanics:</b> Sprinting drains stamina and alerts nearby enemies.</p>
+        
+        <div class="enemy-legend">
+            <div class="legend-item"><span class="dot" style="background: #e74c3c;"></span> Standard Agents (Narrow vision, slower)</div>
+            <div class="legend-item"><span class="dot" style="background: #f1c40f;"></span> Deportation Officers (Wide vision, fast, aggressive)</div>
+        </div>
+
+        <button id="start-btn">BEGIN ESCAPE</button>
+    </div>
+
+    <div id="game-over-screen" class="screen">
+        <h1>Caught.</h1>
+        <p>Have fun on the plane back to Mexico</p>
+        <button id="restart-btn">Try Again?</button>
+    </div>
+
+    <div id="win-screen" class="screen">
+        <h1 class="win-title">ESCAPED.</h1>
+        <p>You made it to the safehouse. You're safe, for now.</p>
+        <button id="win-restart-btn" class="win-btn">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const winScreen = document.getElementById('win-screen');
+        const distanceDisplay = document.getElementById('distance-display');
+        const statusDisplay = document.getElementById('status');
+        const threatLevelDisplay = document.getElementById('threat-level');
+        const staminaBar = document.getElementById('stamina-bar');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Increased chunk size for massive buildings
+        const CHUNK_SIZE = 3000;    
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        let gameActive = false;
+        let camera = { x: 0, y: 0 };
+        let chunks = {}; 
+        let enemies = [];
+        let extractionPoint = { x: 0, y: 0, radius: 80 };
+        let currentProgress = 0; 
+
+        let player = {
+            x: 0, y: 0,
+            radius: 12,
+            walkSpeed: 5,
+            sprintSpeed: 10,
+            stamina: 100,
+            exhausted: false,
+            isSpotted: false,
+            isSprinting: false,
+            color: '#00d2ff'
+        };
+
+        const obstacleLibrary = [
+            { type: 'desk', w: 100, h: 45, color: '#5C4033' },
+            { type: 'server_rack', w: 50, h: 160, color: '#2F4F4F' },
+            { type: 'crates_large', w: 90, h: 90, color: '#8B5A2B' },
+            { type: 'crates_small', w: 55, h: 55, color: '#A0522D' },
+            { type: 'bookshelf', w: 140, h: 30, color: '#3e2723' },
+            { type: 'pillar', w: 40, h: 40, color: '#7f8c8d' },
+            { type: 'long_table', w: 220, h: 60, color: '#4a4a4a' }
+        ];
+
+        function getSeededRandom(x, y, offset) {
+            let seed = (x * 374761393) + (y * 668265263) + offset;
+            seed = (seed ^ (seed >> 13)) * 1274126177;
+            return Math.abs((seed ^ (seed >> 16)) / 4294967296);
+        }
+
+        function generateChunk(cx, cy) {
+            let buildings = [];
+            let colliders = []; 
+
+            // Brute force packing for ultra-dense slums
+            let attempts = 40; 
+
+            for (let i = 0; i < attempts; i++) {
+                // MASSIVE buildings
+                let bw = getSeededRandom(cx, cy, i*10 + 1) * 800 + 400; 
+                let bh = getSeededRandom(cx, cy, i*10 + 2) * 800 + 400;
+                let bx = cx * CHUNK_SIZE + getSeededRandom(cx, cy, i*10 + 3) * (CHUNK_SIZE - bw);
+                let by = cy * CHUNK_SIZE + getSeededRandom(cx, cy, i*10 + 4) * (CHUNK_SIZE - bh);
+
+                let overlap = false;
+                
+                if (cx === 0 && cy === 0) {
+                    if (bx < 1200 && bx + bw > 800 && by < 1200 && by + bh > 800) {
+                        overlap = true;
+                    }
+                }
+
+                // VERY tight padding. Just 40 units wide (claustrophobic alleys)
+                for (let b of buildings) {
+                    if (bx < b.x + b.w + 40 && bx + bw > b.x - 40 && 
+                        by < b.y + b.h + 40 && by + bh > b.y - 40) {
+                        overlap = true; break;
+                    }
+                }
+
+                if (!overlap) {
+                    let bData = { x: bx, y: by, w: bw, h: bh, obstacles: [] };
+                    buildings.push(bData);
+
+                    let wallThick = 20;
+                    let doorSize = 85; 
+
+                    // Draw Walls and punch Doors
+                    let hasTopDoor = getSeededRandom(bx, by, 5) > 0.3;
+                    if (hasTopDoor) {
+                        let dp = wallThick + getSeededRandom(bx, by, 6) * (bw - doorSize - wallThick*2);
+                        colliders.push({ x: bx, y: by, w: dp, h: wallThick, isWall: true });
+                        colliders.push({ x: bx + dp + doorSize, y: by, w: bw - dp - doorSize, h: wallThick, isWall: true });
+                    } else {
+                        colliders.push({ x: bx, y: by, w: bw, h: wallThick, isWall: true });
+                    }
+
+                    let hasBotDoor = getSeededRandom(bx, by, 7) > 0.3;
+                    if (hasBotDoor) {
+                        let dp = wallThick + getSeededRandom(bx, by, 8) * (bw - doorSize - wallThick*2);
+                        colliders.push({ x: bx, y: by + bh - wallThick, w: dp, h: wallThick, isWall: true });
+                        colliders.push({ x: bx + dp + doorSize, y: by + bh - wallThick, w: bw - dp - doorSize, h: wallThick, isWall: true });
+                    } else {
+                        colliders.push({ x: bx, y: by + bh - wallThick, w: bw, h: wallThick, isWall: true });
+                    }
+
+                    let hasLeftDoor = getSeededRandom(bx, by, 9) > 0.3;
+                    if (hasLeftDoor) {
+                        let dp = wallThick + getSeededRandom(bx, by, 10) * (bh - doorSize - wallThick*2);
+                        colliders.push({ x: bx, y: by, w: wallThick, h: dp, isWall: true });
+                        colliders.push({ x: bx, y: by + dp + doorSize, w: wallThick, h: bh - dp - doorSize, isWall: true });
+                    } else {
+                        colliders.push({ x: bx, y: by, w: wallThick, h: bh, isWall: true });
+                    }
+
+                    let hasRightDoor = (!hasTopDoor && !hasBotDoor && !hasLeftDoor) ? true : getSeededRandom(bx, by, 11) > 0.3;
+                    if (hasRightDoor) {
+                        let dp = wallThick + getSeededRandom(bx, by, 12) * (bh - doorSize - wallThick*2);
+                        colliders.push({ x: bx + bw - wallThick, y: by, w: wallThick, h: dp, isWall: true });
+                        colliders.push({ x: bx + bw - wallThick, y: by + dp + doorSize, w: wallThick, h: bh - dp - doorSize, isWall: true });
+                    } else {
+                        colliders.push({ x: bx + bw - wallThick, y: by, w: wallThick, h: bh, isWall: true });
+                    }
+
+                    // More obstacles because buildings are huge
+                    let numObs = Math.floor(getSeededRandom(bx, by, 13) * 12) + 6; 
+                    for (let o = 0; o < numObs; o++) {
+                        let ot = obstacleLibrary[Math.floor(getSeededRandom(bx, by, 14+o) * obstacleLibrary.length)];
+                        let maxOx = Math.max(0, bw - wallThick*2 - ot.w - 20);
+                        let maxOy = Math.max(0, bh - wallThick*2 - ot.h - 20);
+                        
+                        let ox = bx + wallThick + 10 + getSeededRandom(bx, by, 15+o) * maxOx;
+                        let oy = by + wallThick + 10 + getSeededRandom(bx, by, 16+o) * maxOy;
+                        
+                        let obsData = { x: ox, y: oy, w: ot.w, h: ot.h, color: ot.color, isWall: false };
+                        bData.obstacles.push(obsData);
+                        colliders.push(obsData);
+                    }
+                }
+            }
+            return { buildings, colliders };
+        }
+
+        function getChunkData(cx, cy) {
+            const key = `${cx},${cy}`;
+            if (!chunks[key]) chunks[key] = generateChunk(cx, cy);
+            return chunks[key];
+        }
+
+        function getNearbyColliders(x, y) {
+            let cx = Math.floor(x / CHUNK_SIZE);
+            let cy = Math.floor(y / CHUNK_SIZE);
+            let nearby = [];
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    nearby.push(...getChunkData(cx + i, cy + j).colliders);
+                }
+            }
+            return nearby;
+        }
+
+        function resolveCircleRect(circle, rect) {
+            let testX = circle.x;
+            let testY = circle.y;
+
+            if (circle.x < rect.x) testX = rect.x;
+            else if (circle.x > rect.x + rect.w) testX = rect.x + rect.w;
+
+            if (circle.y < rect.y) testY = rect.y;
+            else if (circle.y > rect.y + rect.h) testY = rect.y + rect.h;
+
+            let distX = circle.x - testX;
+            let distY = circle.y - testY;
+            let distance = Math.sqrt((distX*distX) + (distY*distY));
+
+            if (distance < circle.radius) {
+                let pushDist = circle.radius - distance;
+                let nx = distance === 0 ? 1 : distX / distance;
+                let ny = distance === 0 ? 0 : distY / distance;
+                
+                circle.x += nx * pushDist;
+                circle.y += ny * pushDist;
+                return true;
+            }
+            return false;
+        }
+
+        function moveEntityWithPhysics(entity, dx, dy, colliders) {
+            entity.x += dx;
+            entity.y += dy;
+            for(let pass=0; pass<3; pass++) {
+                for (let c of colliders) {
+                    resolveCircleRect(entity, c);
+                }
+            }
+        }
+
+        // Raycast logic
+        function checkRaycast(x1, y1, x2, y2) {
+            const dist = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.floor(dist / 20);
+            const dx = (x2 - x1) / steps;
+            const dy = (y2 - y1) / steps;
+
+            let checkX = x1, checkY = y1;
+            for (let i = 0; i < steps; i++) {
+                checkX += dx;
+                checkY += dy;
+                let colliders = getNearbyColliders(checkX, checkY);
+                for (let c of colliders) {
+                    if (checkX >= c.x && checkX <= c.x + c.w && checkY >= c.y && checkY <= c.y + c.h) {
+                        return false; 
+                    }
+                }
+            }
+            return true;
+        }
+
+        function spawnEnemy(enforcerChance = 0) {
+            let angle = Math.random() * Math.PI * 2;
+            let safeDistance = Math.max(canvas.width, canvas.height) + 200; 
+            
+            let ex = player.x + Math.cos(angle) * safeDistance;
+            let ey = player.y + Math.sin(angle) * safeDistance;
+
+            let isEnforcer = Math.random() < enforcerChance;
+
+            enemies.push({
+                id: Math.random(),
+                x: ex, y: ey,
+                isEnforcer: isEnforcer,
+                radius: isEnforcer ? 14 : 12,
+                speed: isEnforcer ? 6 : 3.5, 
+                state: 'patrol',
+                targetX: ex, targetY: ey,
+                angle: Math.random() * Math.PI * 2, // Facing direction
+                fov: isEnforcer ? Math.PI * 0.6 : Math.PI * 0.3, // Vision angle breadth
+                visionRange: isEnforcer ? 700 : 500,
+                stuckTimer: 0,
+                slideDir: Math.random() > 0.5 ? 1 : -1,
+                color: isEnforcer ? '#f1c40f' : '#e74c3c'
+            });
+        }
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            winScreen.style.display = 'none';
+            
+            player.x = 1000;
+            player.y = 1000;
+            player.stamina = 100;
+            player.exhausted = false;
+            
+            let extAngle = Math.random() * Math.PI * 2;
+            extractionPoint.x = player.x + Math.cos(extAngle) * 30000;
+            extractionPoint.y = player.y + Math.sin(extAngle) * 30000;
+
+            chunks = {};
+            enemies = [];
+            gameActive = true;
+
+            for(let i=0; i<12; i++) spawnEnemy(0);
+            
+            requestAnimationFrame(update);
+        }
+
+        document.getElementById('start-btn').addEventListener('pointerdown', startGame);
+        document.getElementById('restart-btn').addEventListener('pointerdown', startGame);
+        document.getElementById('win-restart-btn').addEventListener('pointerdown', startGame);
+
+        function update() {
+            if (!gameActive) return;
+
+            // 1. Stamina & Sprint Logic
+            let moving = false;
+            let dx = 0; let dy = 0;
+            
+            if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+            if (dx !== 0 || dy !== 0) moving = true;
+
+            player.isSprinting = false;
+            let currentSpeed = player.walkSpeed;
+
+            if ((keys['ShiftLeft'] || keys['ShiftRight']) && moving && !player.exhausted) {
+                player.isSprinting = true;
+                currentSpeed = player.sprintSpeed;
+                player.stamina -= 0.6;
+                if (player.stamina <= 0) {
+                    player.stamina = 0;
+                    player.exhausted = true;
+                    staminaBar.classList.add('exhausted');
+                }
+            } else {
+                // Regen stamina
+                if (!moving) player.stamina += 0.8; // Rest fast
+                else player.stamina += 0.3; // Walk rest slow
+
+                if (player.stamina >= 30) {
+                    player.exhausted = false;
+                    staminaBar.classList.remove('exhausted');
+                }
+                if (player.stamina > 100) player.stamina = 100;
+            }
+
+            staminaBar.style.width = `${player.stamina}%`;
+
+            // Normalize movement vector
+            if (moving) {
+                let length = Math.sqrt(dx*dx + dy*dy);
+                dx = (dx / length) * currentSpeed;
+                dy = (dy / length) * currentSpeed;
+            }
+
+            let localColliders = getNearbyColliders(player.x, player.y);
+            moveEntityWithPhysics(player, dx, dy, localColliders);
+
+            // 2. Win Condition & Difficulty Scaling
+            let distToWin = Math.hypot(extractionPoint.x - player.x, extractionPoint.y - player.y);
+            distanceDisplay.innerText = `Distance to Extraction: ${Math.floor(distToWin / 10)}m`;
+            
+            if (distToWin < extractionPoint.radius + player.radius) {
+                gameActive = false;
+                winScreen.style.display = 'flex';
+                return;
+            }
+
+            currentProgress = Math.max(0, Math.min(1, 1 - (distToWin / 30000)));
+            let maxEnemies = Math.floor(12 + (currentProgress * 25)); 
+            let currentEnforcerChance = currentProgress * 0.7; 
+
+            if (currentProgress < 0.3) {
+                threatLevelDisplay.innerText = "Threat: LOW";
+                threatLevelDisplay.style.color = "#2ecc71";
+            } else if (currentProgress < 0.7) {
+                threatLevelDisplay.innerText = "Threat: MODERATE";
+                threatLevelDisplay.style.color = "#e67e22";
+            } else {
+                threatLevelDisplay.innerText = "Threat: SEVERE";
+                threatLevelDisplay.style.color = "#e74c3c";
+            }
+
+            // 3. Update Camera
+            camera.x = player.x - canvas.width / 2;
+            camera.y = player.y - canvas.height / 2;
+
+            // 4. Enemy AI & Stealth Mechanics
+            player.isSpotted = false;
+            
+            if (enemies.length < maxEnemies && Math.random() < 0.03 + (currentProgress * 0.05)) {
+                spawnEnemy(currentEnforcerChance);
+            }
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+
+                // Despawn far enemies
+                if (Math.hypot(e.x - player.x, e.y - player.y) > 4000) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
+                let angleToPlayer = Math.atan2(player.y - e.y, player.x - e.x);
+                
+                // NOISE MECHANIC: Sprinting is loud
+                if (player.isSprinting && distToPlayer < 500) {
+                    // Turn towards noise and investigate
+                    e.state = 'investigate';
+                    e.targetX = player.x;
+                    e.targetY = player.y;
+                }
+
+                // VISION CONE MECHANIC
+                let canSee = false;
+                if (distToPlayer < e.visionRange) {
+                    let angleDiff = Math.abs(angleToPlayer - e.angle);
+                    if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+                    // If inside the cone, or if literally touching the enemy
+                    if (angleDiff < e.fov / 2 || distToPlayer < 70) {
+                        if (checkRaycast(e.x, e.y, player.x, player.y)) {
+                            canSee = true;
+                        }
+                    }
+                }
+
+                if (canSee) {
+                    e.state = 'chase';
+                    e.targetX = player.x;
+                    e.targetY = player.y;
+                    player.isSpotted = true;
+                } else if (e.state === 'chase') {
+                    e.state = 'investigate';
+                }
+
+                let edx = e.targetX - e.x;
+                let edy = e.targetY - e.y;
+                let edist = Math.sqrt(edx*edx + edy*edy);
+                let oldX = e.x;
+                let oldY = e.y;
+
+                if (edist > 10) {
+                    // Turn smoothly towards movement direction
+                    let targetAngle = Math.atan2(edy, edx);
+                    
+                    // Simple angle smoothing
+                    let ad = targetAngle - e.angle;
+                    if (ad > Math.PI) ad -= Math.PI*2;
+                    if (ad < -Math.PI) ad += Math.PI*2;
+                    e.angle += ad * 0.15;
+
+                    let moveX = Math.cos(e.angle) * e.speed;
+                    let moveY = Math.sin(e.angle) * e.speed;
+                    
+                    if (e.isEnforcer && e.stuckTimer > 10) {
+                        moveX += (-edy / edist) * e.speed * e.slideDir * 1.5;
+                        moveY += (edx / edist) * e.speed * e.slideDir * 1.5;
+                        if (e.stuckTimer > 50) e.slideDir *= -1; 
+                    }
+
+                    moveEntityWithPhysics(e, moveX, moveY, localColliders);
+
+                    let actualMoved = Math.hypot(e.x - oldX, e.y - oldY);
+                    if (actualMoved < e.speed * 0.4 && e.state !== 'patrol') {
+                        e.stuckTimer++;
+                    } else {
+                        e.stuckTimer = 0;
+                    }
+
+                } else {
+                    e.state = 'patrol';
+                    e.targetX = e.x + (Math.random() > 0.5 ? 800 : -800);
+                    e.targetY = e.y + (Math.random() > 0.5 ? 800 : -800);
+                }
+
+                if (Math.hypot(e.x - player.x, e.y - player.y) < player.radius + e.radius) {
+                    endGame();
+                    return;
+                }
+            }
+
+            if (player.isSpotted) {
+                statusDisplay.innerText = "Status: SPOTTED!";
+                statusDisplay.className = "stat spotted";
+            } else {
+                statusDisplay.innerText = "Status: STEALTH";
+                statusDisplay.className = "stat";
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+
+            let startCol = Math.floor(camera.x / CHUNK_SIZE);
+            let endCol = Math.floor((camera.x + canvas.width) / CHUNK_SIZE);
+            let startRow = Math.floor(camera.y / CHUNK_SIZE);
+            let endRow = Math.floor((camera.y + canvas.height) / CHUNK_SIZE);
+
+            // Draw Buildings & Obstacles
+            for (let c = startCol - 1; c <= endCol + 1; c++) {
+                for (let r = startRow - 1; r <= endRow + 1; r++) {
+                    let data = getChunkData(c, r);
+
+                    ctx.fillStyle = '#1c1f21'; 
+                    for (let b of data.buildings) {
+                        ctx.fillRect(b.x, b.y, b.w, b.h);
+                        
+                        for(let obs of b.obstacles) {
+                            ctx.fillStyle = obs.color;
+                            ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+                            ctx.strokeStyle = '#050505';
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+                        }
+                    }
+
+                    ctx.fillStyle = '#3a3d40'; 
+                    for (let col of data.colliders) {
+                        if (col.isWall) {
+                            ctx.fillRect(col.x, col.y, col.w, col.h);
+                        }
+                    }
+                }
+            }
+
+            // Draw Extraction Point
+            ctx.beginPath();
+            ctx.arc(extractionPoint.x, extractionPoint.y, extractionPoint.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(46, 204, 113, 0.2)';
+            ctx.fill();
+            ctx.strokeStyle = '#2ecc71';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw Noise Circle if sprinting
+            if (player.isSprinting) {
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 500, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            // Draw Enemies & Vision Cones
+            for (let e of enemies) {
+                // Draw Vision Cone
+                ctx.beginPath();
+                ctx.moveTo(e.x, e.y);
+                ctx.arc(e.x, e.y, e.visionRange, e.angle - e.fov/2, e.angle + e.fov/2);
+                ctx.lineTo(e.x, e.y);
+                
+                if (e.state === 'chase') {
+                    ctx.fillStyle = 'rgba(231, 76, 60, 0.25)';
+                } else if (e.state === 'investigate') {
+                    ctx.fillStyle = 'rgba(230, 126, 34, 0.15)';
+                } else {
+                    ctx.fillStyle = e.isEnforcer ? 'rgba(241, 196, 15, 0.1)' : 'rgba(255, 255, 255, 0.05)';
+                }
+                ctx.fill();
+
+                // Draw Enemy Body
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                ctx.fillStyle = e.color;
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = e.isEnforcer ? 3 : 2;
+                ctx.stroke();
+            }
+
+            // Draw Player
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Compass Overlay
+            let angleToExit = Math.atan2(extractionPoint.y - player.y, extractionPoint.x - player.x);
+            let compassDist = 70; 
+            let cx = canvas.width / 2 + Math.cos(angleToExit) * compassDist;
+            let cy = canvas.height / 2 + Math.sin(angleToExit) * compassDist;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angleToExit);
+            ctx.beginPath();
+            ctx.moveTo(12, 0);
+            ctx.lineTo(-10, -8);
+            ctx.lineTo(-10, 8);
+            ctx.fillStyle = '#2ecc71';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function endGame() {
+            gameActive = false;
+            
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+            for(let i=0; i<25; i++) {
+                ctx.beginPath();
+                ctx.arc(
+                    player.x + (Math.random() - 0.5) * 60, 
+                    player.y + (Math.random() - 0.5) * 60, 
+                    Math.random() * 8 + 2, 0, Math.PI * 2
+                );
+                ctx.fillStyle = '#8b0000';
+                ctx.fill();
+            }
+            ctx.restore();
+
+            setTimeout(() => {
+                gameOverScreen.style.display = 'flex';
+            }, 800);
+        }
+    </script>
+</body>
+</html>
