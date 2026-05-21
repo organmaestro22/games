@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pedo Toucher 2.0</title>
+    <style>
+        html, body { 
+            height: 100%; 
+            margin: 0; 
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none; 
+        }
+        body {
+            background: linear-gradient(#87CEEB, #f6f1d3);
+            background-color: #87CEEB; 
+			background-image: url('nice-island.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+        #timer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 101;
+        }
+        #timer-bar {
+            height: 100%;
+            width: 100%;
+            background: #ff4757;
+            transition: width 0.1s linear;
+        }
+        #hud {
+            position: absolute;
+            top: 25px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            pointer-events: none;
+            z-index: 100;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .stat-box { font-size: 24px; font-weight: bold; }
+        #stage {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        .face-link {
+            position: absolute;
+            display: none;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+            border: 6px solid rgba(255, 0, 0, 0.713);
+            overflow: hidden;
+            background: white;
+            user-select: none;
+            cursor: crosshair;
+            z-index: 50;
+        }
+        .face-link:active { transform: scale(0.9); }
+        .face-link img { width: 100%; height: 100%; object-fit: cover; }
+        
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 200;
+            color: white;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        #game-over h1 { font-size: 4rem; margin-bottom: 10px; color: #ff4757; }
+        #game-over p { font-size: 1.5rem; margin-bottom: 30px; }
+        #game-over h2 { font-size: 2.5rem; color: #ff4757; margin-bottom: 20px; }
+        #game-over button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            background: #16954b;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: background 0.2s;
+        }
+        #game-over button:hover { background: #26b360; }
+    </style>
+</head>
+<body>
+    <div id="timer-container"><div id="timer-bar"></div></div>
+    
+    <div id="hud">
+        <div class="stat-box">Level: <span id="level-val">1</span></div>
+        <h3>Touch the pedophiles before they touch you!</h3>
+        <div class="stat-box">Score: <span id="score-val">0</span></div>
+    </div>
+
+    <div id="stage">
+        <a href="#" class="face-link" id="link1"><img src="donald.jpg" alt="Donald"></a>
+        <a href="#" class="face-link" id="link2"><img src="bill.jpg"" alt="Bill"></a>
+        <a href="#" class="face-link" id="link3"><img src="jeff.jpg" alt="Jeff"></a>
+        <a href="#" class="face-link" id="link4"><img src="dean.jpg" alt="Dean"></a>
+        <a href="#" class="face-link" id="link5"><img src="stephen.jpg" alt="Stephen"></a>
+    </div>
+
+    <div id="game-over">
+        <h1>GAME OVER</h1>
+        <h2><span id="who-got-you"></span> got you!</h2>
+        <p>You reached Level <span id="final-level"></span> with a score of <span id="final-score"></span>.</p>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script>
+        const stage = document.getElementById('stage');
+        const scoreEl = document.getElementById('score-val');
+        const levelEl = document.getElementById('level-val');
+        const timerBar = document.getElementById('timer-bar');
+        const gameOverScreen = document.getElementById('game-over');
+        const elems = Array.from(document.querySelectorAll('.face-link'));
+        
+        // Mapping element IDs to names for the game over screen
+        const nameMap = {
+            link1: "Donald",
+            link2: "Bill",
+            link3: "Jeff",
+            link4: "Dean",
+            link5: "Stephen"
+        };
+        
+        let currentIndex = 0;
+        let activeState = null;
+        let score = 0;
+        let level = 1;
+        let speedMultiplier = 1.0;
+        let currentFaceName = ""; // Variable to store the current face's name
+
+        let maxTime = 7000; 
+        let timeLeft = maxTime;
+        let lastTime = 0;
+        let isGameOver = false;
+        let animationFrameId;
+
+        function spawnCurrent() {
+            if (activeState && activeState.el) {
+                activeState.el.style.display = 'none';
+            }
+
+            const el = elems[currentIndex];
+            el.style.display = 'block';
+            
+            // Store the name of the current face
+            currentFaceName = nameMap[el.id];
+
+            const w = 200;
+            const h = 200;
+            
+            const x = Math.random() * Math.max(0, stage.clientWidth - w);
+            const y = Math.random() * Math.max(0, stage.clientHeight - h);
+            
+            const baseSpeed = (5) * speedMultiplier;
+            const angle = Math.random() * Math.PI * 2;
+            
+            activeState = { 
+                el, 
+                x, y, 
+                dx: Math.cos(angle) * baseSpeed, 
+                dy: Math.sin(angle) * baseSpeed, 
+                w, h 
+            };
+
+            maxTime = Math.max(3000, 10000 - (level * 100));
+            timeLeft = maxTime;
+            timerBar.style.width = '100%';
+        }
+
+        elems.forEach((el) => {
+            el.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                if (isGameOver) return;
+                
+                score += (10 * level);
+                scoreEl.innerText = score;
+
+                currentIndex++;
+                
+                if (currentIndex >= elems.length) {
+                    currentIndex = 0;
+                    level++;
+                    speedMultiplier += 0.5; 
+                    levelEl.innerText = level;
+                    levelEl.style.color = "#FFD700";
+                    setTimeout(() => levelEl.style.color = "white", 500);
+                }
+                
+                spawnCurrent();
+            });
+        });
+
+        function getKick() {
+            return (Math.random() - 0.5) * (0.8 * speedMultiplier); 
+        }
+
+        function triggerGameOver() {
+            isGameOver = true;
+            if (activeState && activeState.el) {
+                activeState.el.style.display = 'none';
+            }
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-level').innerText = level;
+            // Update the game over screen with the current name
+            document.getElementById('who-got-you').innerText = currentFaceName;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function restartGame() {
+            isGameOver = false;
+            score = 0;
+            level = 1;
+            speedMultiplier = 1.0;
+            currentIndex = 0;
+            lastTime = 0;
+            currentFaceName = ""; // Reset current name
+            
+            scoreEl.innerText = score;
+            levelEl.innerText = level;
+            gameOverScreen.style.display = 'none';
+            
+            spawnCurrent();
+            animationFrameId = requestAnimationFrame(step);
+        }
+
+        function step(timestamp) {
+            if (isGameOver) return;
+
+            if (!lastTime) lastTime = timestamp;
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            timeLeft -= deltaTime;
+            const percentLeft = Math.max(0, (timeLeft / maxTime) * 100);
+            timerBar.style.width = percentLeft + '%';
+            if (percentLeft < 60) {
+            if (percentLeft < 30) {
+                timerBar.style.background = '#dd0000';
+            } else {
+                timerBar.style.background = '#ffbb00';
+            }
+        } else {
+            timerBar.style.background = '#00bb00'
+        }
+
+            if (timeLeft <= 0) {
+                triggerGameOver();
+                return;
+            }
+
+            if (!activeState) {
+                animationFrameId = requestAnimationFrame(step);
+                return;
+            }
+
+            const W = stage.clientWidth;
+            const H = stage.clientHeight;
+            const s = activeState;
+
+            s.x += s.dx;
+            s.y += s.dy;
+
+            if (s.x <= 0) { 
+                s.x = 0; 
+                s.dx = Math.abs(s.dx) + 0.1; 
+                s.dy += getKick();           
+            } else if (s.x + s.w >= W) { 
+                s.x = W - s.w; 
+                s.dx = -Math.abs(s.dx) - 0.1; 
+                s.dy += getKick();
+            }
+
+            if (s.y <= 0) { 
+                s.y = 0; 
+                s.dy = Math.abs(s.dy) + 0.1; 
+                s.dx += getKick();           
+            } else if (s.y + s.h >= H) { 
+                s.y = H - s.h; 
+                s.dy = -Math.abs(s.dy) - 0.1; 
+                s.dx += getKick();
+            }
+
+            s.el.style.left = Math.round(s.x) + 'px';
+            s.el.style.top = Math.round(s.y) + 'px';
+
+            animationFrameId = requestAnimationFrame(step);
+        }
+
+        window.addEventListener('resize', () => {
+            if (!activeState) return;
+            const W = stage.clientWidth, H = stage.clientHeight;
+            const s = activeState;
+            if (s.x + s.w > W) s.x = Math.max(0, W - s.w);
+            if (s.y + s.h > H) s.y = Math.max(0, H - s.h);
+        });
+
+        document.querySelectorAll('img').forEach(i => i.ondragstart = () => false);
+
+        spawnCurrent();
+        animationFrameId = requestAnimationFrame(step);
+    </script>
+</body>
+</html>
