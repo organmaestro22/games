@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shadow Escape: City Streets</title>
+    <title>ICE Escape</title>
     <style>
         * {
             box-sizing: border-box;
@@ -170,11 +170,11 @@
         <p>Run, amigo, run! Reach the <b>Extraction Point</b> 3,000m away.<br><br>
         Use <b>W A S D</b> to sneak. Hold <b>SHIFT</b> to sprint.<br>
         <b>Stealth matters:</b> Enemies have vision cones. Sneak behind them.<br>
-        <b>Noise mechanics:</b> Sprinting drains stamina and alerts nearby enemies.</p>
+        <b>Cover:</b> Hide inside buildings or behind containers outside.</p>
         
         <div class="enemy-legend">
-            <div class="legend-item"><span class="dot" style="background: #e74c3c;"></span> Standard Agents (Narrow vision, slower)</div>
-            <div class="legend-item"><span class="dot" style="background: #f1c40f;"></span> Deportation Officers (Wide vision, fast, aggressive)</div>
+            <div class="legend-item"><span class="dot" style="background: #e74c3c;"></span> Agents (Narrow vision, slower)</div>
+            <div class="legend-item"><span class="dot" style="background: #f1c40f;"></span> Enforcers (Wide vision, fast, aggressive)</div>
         </div>
 
         <button id="start-btn">BEGIN ESCAPE</button>
@@ -211,17 +211,14 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // Increased chunk size for massive buildings
-        const CHUNK_SIZE = 3000;    
         const keys = {};
         window.addEventListener('keydown', e => keys[e.code] = true);
         window.addEventListener('keyup', e => keys[e.code] = false);
 
         let gameActive = false;
         let camera = { x: 0, y: 0 };
-        let chunks = {}; 
         let enemies = [];
-        let extractionPoint = { x: 0, y: 0, radius: 80 };
+        let extractionPoint = { x: 0, y: 0, radius: 100 };
         let currentProgress = 0; 
 
         let player = {
@@ -236,196 +233,373 @@
             color: '#00d2ff'
         };
 
-        const obstacleLibrary = [
-            { type: 'desk', w: 100, h: 45, color: '#5C4033' },
-            { type: 'server_rack', w: 50, h: 160, color: '#2F4F4F' },
-            { type: 'crates_large', w: 90, h: 90, color: '#8B5A2B' },
-            { type: 'crates_small', w: 55, h: 55, color: '#A0522D' },
-            { type: 'bookshelf', w: 140, h: 30, color: '#3e2723' },
-            { type: 'pillar', w: 40, h: 40, color: '#7f8c8d' },
-            { type: 'long_table', w: 220, h: 60, color: '#4a4a4a' }
+        // --- SHAPE LIBRARIES (Parts relative to center 0,0) ---
+        const indoorObstacleLibrary = [
+            { type: 'desk', parts: [{x:0, y:0, w:100, h:45}], radius: 60, color: '#5C4033' },
+            { type: 'server_rack', parts: [{x:0, y:0, w:50, h:160}], radius: 90, color: '#2F4F4F' },
+            { type: 'L_desk', parts: [{x:-20, y:-30, w:110, h:40}, {x:-55, y:20, w:40, h:60}], radius: 80, color: '#4a3020' },
+            { type: 'U_cubicle', parts: [{x:0, y:-50, w:140, h:30}, {x:-55, y:0, w:30, h:70}, {x:0, y:50, w:140, h:30}], radius: 90, color: '#607d8b' },
+            { type: 'plus_desk', parts: [{x:0, y:0, w:140, h:40}, {x:0, y:0, w:40, h:140}], radius: 80, color: '#3e2723' },
+            { type: 'T_partition', parts: [{x:0, y:-30, w:120, h:20}, {x:0, y:20, w:20, h:80}], radius: 70, color: '#7f8c8d' },
+            { type: 'hollow_square', parts: [{x:0, y:-60, w:150, h:30}, {x:0, y:60, w:150, h:30}, {x:-60, y:0, w:30, h:90}, {x:60, y:0, w:30, h:90}], radius: 100, color: '#2c3e50' },
+            { type: 'zigzag', parts: [{x:-40, y:-40, w:80, h:25}, {x:0, y:0, w:25, h:80}, {x:40, y:40, w:80, h:25}], radius: 80, color: '#8d6e63' }
         ];
 
-        function getSeededRandom(x, y, offset) {
-            let seed = (x * 374761393) + (y * 668265263) + offset;
-            seed = (seed ^ (seed >> 13)) * 1274126177;
-            return Math.abs((seed ^ (seed >> 16)) / 4294967296);
+        const outdoorObstacleLibrary = [
+            { type: 'shipping_container', parts: [{x:0, y:0, w:280, h:90}], radius: 150, color: '#d35400' },
+            { type: 'shipping_container_blue', parts: [{x:0, y:0, w:280, h:90}], radius: 150, color: '#2980b9' },
+            { type: 'concrete_barrier', parts: [{x:0, y:0, w:160, h:30}], radius: 90, color: '#95a5a6' },
+            { type: 'dumpster', parts: [{x:0, y:0, w:90, h:70}], radius: 60, color: '#27ae60' },
+            { type: 'generator_cluster', parts: [{x:-50, y:0, w:70, h:100}, {x:50, y:0, w:70, h:100}], radius: 100, color: '#34495e' },
+            { type: 'pipes', parts: [{x:0, y:0, w:200, h:60}], radius: 110, color: '#636e72' }
+        ];
+
+        // --- PHYSICS & COLLIDERS ---
+        // Creates an Oriented Bounding Box (OBB)
+        function createCollider(cx, cy, w, h, angle, isWall, color) {
+            let col = { isWall: isWall, color: color, cx: cx, cy: cy, w: w, h: h, angle: angle, lines: [] };
+
+            let cosA = Math.cos(angle);
+            let sinA = Math.sin(angle);
+            let dx = w/2; let dy = h/2;
+
+            // Generate 4 rotated corners
+            let points = [
+                [-dx, -dy], [dx, -dy], [dx, dy], [-dx, dy]
+            ].map(p => [
+                cx + p[0]*cosA - p[1]*sinA,
+                cy + p[0]*sinA + p[1]*cosA
+            ]);
+
+            col.corners = points;
+            col.lines = [
+                [points[0][0], points[0][1], points[1][0], points[1][1]],
+                [points[1][0], points[1][1], points[2][0], points[2][1]],
+                [points[2][0], points[2][1], points[3][0], points[3][1]],
+                [points[3][0], points[3][1], points[0][0], points[0][1]]
+            ];
+
+            // AABB for fast spatial hashing
+            col.aabb = {
+                minX: Math.min(...points.map(p=>p[0])),
+                maxX: Math.max(...points.map(p=>p[0])),
+                minY: Math.min(...points.map(p=>p[1])),
+                maxY: Math.max(...points.map(p=>p[1]))
+            };
+
+            return col;
         }
 
-        function generateChunk(cx, cy) {
-            let buildings = [];
-            let colliders = []; 
+        // Resolves perfect collision between a circle and an OBB
+        function resolveCircleCollider(circle, col) {
+            let tx = circle.x - col.cx;
+            let ty = circle.y - col.cy;
 
-            // Brute force packing for ultra-dense slums
-            let attempts = 40; 
+            let cosA = Math.cos(-col.angle);
+            let sinA = Math.sin(-col.angle);
+            let rx = tx * cosA - ty * sinA;
+            let ry = tx * sinA + ty * cosA;
 
-            for (let i = 0; i < attempts; i++) {
-                // MASSIVE buildings
-                let bw = getSeededRandom(cx, cy, i*10 + 1) * 800 + 400; 
-                let bh = getSeededRandom(cx, cy, i*10 + 2) * 800 + 400;
-                let bx = cx * CHUNK_SIZE + getSeededRandom(cx, cy, i*10 + 3) * (CHUNK_SIZE - bw);
-                let by = cy * CHUNK_SIZE + getSeededRandom(cx, cy, i*10 + 4) * (CHUNK_SIZE - bh);
+            let hw = col.w / 2;
+            let hh = col.h / 2;
+            let closestX = Math.max(-hw, Math.min(hw, rx));
+            let closestY = Math.max(-hh, Math.min(hh, ry));
 
-                let overlap = false;
-                
-                if (cx === 0 && cy === 0) {
-                    if (bx < 1200 && bx + bw > 800 && by < 1200 && by + bh > 800) {
-                        overlap = true;
-                    }
+            let dx = rx - closestX;
+            let dy = ry - closestY;
+            let distSq = dx*dx + dy*dy;
+
+            if (distSq < circle.radius * circle.radius) {
+                let dist = Math.sqrt(distSq);
+                let pushDist = circle.radius - dist;
+                let nx, ny;
+
+                if (dist === 0) { // Circle dead center or perfectly inside
+                    let dRight = hw - rx; let dLeft = rx - (-hw);
+                    let dTop = ry - (-hh); let dBot = hh - ry;
+                    let minEdge = Math.min(dRight, dLeft, dTop, dBot);
+                    
+                    if (minEdge === dRight) { nx = 1; ny = 0; pushDist = circle.radius + dRight; }
+                    else if (minEdge === dLeft) { nx = -1; ny = 0; pushDist = circle.radius + dLeft; }
+                    else if (minEdge === dBot) { nx = 0; ny = 1; pushDist = circle.radius + dBot; }
+                    else { nx = 0; ny = -1; pushDist = circle.radius + dTop; }
+                } else {
+                    nx = dx / dist; ny = dy / dist;
                 }
 
-                // VERY tight padding. Just 40 units wide (claustrophobic alleys)
-                for (let b of buildings) {
-                    if (bx < b.x + b.w + 40 && bx + bw > b.x - 40 && 
-                        by < b.y + b.h + 40 && by + bh > b.y - 40) {
-                        overlap = true; break;
-                    }
-                }
+                rx += nx * pushDist;
+                ry += ny * pushDist;
 
-                if (!overlap) {
-                    let bData = { x: bx, y: by, w: bw, h: bh, obstacles: [] };
-                    buildings.push(bData);
-
-                    let wallThick = 20;
-                    let doorSize = 85; 
-
-                    // Draw Walls and punch Doors
-                    let hasTopDoor = getSeededRandom(bx, by, 5) > 0.3;
-                    if (hasTopDoor) {
-                        let dp = wallThick + getSeededRandom(bx, by, 6) * (bw - doorSize - wallThick*2);
-                        colliders.push({ x: bx, y: by, w: dp, h: wallThick, isWall: true });
-                        colliders.push({ x: bx + dp + doorSize, y: by, w: bw - dp - doorSize, h: wallThick, isWall: true });
-                    } else {
-                        colliders.push({ x: bx, y: by, w: bw, h: wallThick, isWall: true });
-                    }
-
-                    let hasBotDoor = getSeededRandom(bx, by, 7) > 0.3;
-                    if (hasBotDoor) {
-                        let dp = wallThick + getSeededRandom(bx, by, 8) * (bw - doorSize - wallThick*2);
-                        colliders.push({ x: bx, y: by + bh - wallThick, w: dp, h: wallThick, isWall: true });
-                        colliders.push({ x: bx + dp + doorSize, y: by + bh - wallThick, w: bw - dp - doorSize, h: wallThick, isWall: true });
-                    } else {
-                        colliders.push({ x: bx, y: by + bh - wallThick, w: bw, h: wallThick, isWall: true });
-                    }
-
-                    let hasLeftDoor = getSeededRandom(bx, by, 9) > 0.3;
-                    if (hasLeftDoor) {
-                        let dp = wallThick + getSeededRandom(bx, by, 10) * (bh - doorSize - wallThick*2);
-                        colliders.push({ x: bx, y: by, w: wallThick, h: dp, isWall: true });
-                        colliders.push({ x: bx, y: by + dp + doorSize, w: wallThick, h: bh - dp - doorSize, isWall: true });
-                    } else {
-                        colliders.push({ x: bx, y: by, w: wallThick, h: bh, isWall: true });
-                    }
-
-                    let hasRightDoor = (!hasTopDoor && !hasBotDoor && !hasLeftDoor) ? true : getSeededRandom(bx, by, 11) > 0.3;
-                    if (hasRightDoor) {
-                        let dp = wallThick + getSeededRandom(bx, by, 12) * (bh - doorSize - wallThick*2);
-                        colliders.push({ x: bx + bw - wallThick, y: by, w: wallThick, h: dp, isWall: true });
-                        colliders.push({ x: bx + bw - wallThick, y: by + dp + doorSize, w: wallThick, h: bh - dp - doorSize, isWall: true });
-                    } else {
-                        colliders.push({ x: bx + bw - wallThick, y: by, w: wallThick, h: bh, isWall: true });
-                    }
-
-                    // More obstacles because buildings are huge
-                    let numObs = Math.floor(getSeededRandom(bx, by, 13) * 12) + 6; 
-                    for (let o = 0; o < numObs; o++) {
-                        let ot = obstacleLibrary[Math.floor(getSeededRandom(bx, by, 14+o) * obstacleLibrary.length)];
-                        let maxOx = Math.max(0, bw - wallThick*2 - ot.w - 20);
-                        let maxOy = Math.max(0, bh - wallThick*2 - ot.h - 20);
-                        
-                        let ox = bx + wallThick + 10 + getSeededRandom(bx, by, 15+o) * maxOx;
-                        let oy = by + wallThick + 10 + getSeededRandom(bx, by, 16+o) * maxOy;
-                        
-                        let obsData = { x: ox, y: oy, w: ot.w, h: ot.h, color: ot.color, isWall: false };
-                        bData.obstacles.push(obsData);
-                        colliders.push(obsData);
-                    }
-                }
-            }
-            return { buildings, colliders };
-        }
-
-        function getChunkData(cx, cy) {
-            const key = `${cx},${cy}`;
-            if (!chunks[key]) chunks[key] = generateChunk(cx, cy);
-            return chunks[key];
-        }
-
-        function getNearbyColliders(x, y) {
-            let cx = Math.floor(x / CHUNK_SIZE);
-            let cy = Math.floor(y / CHUNK_SIZE);
-            let nearby = [];
-            for (let i = -1; i <= 1; i++) {
-                for (let j = -1; j <= 1; j++) {
-                    nearby.push(...getChunkData(cx + i, cy + j).colliders);
-                }
-            }
-            return nearby;
-        }
-
-        function resolveCircleRect(circle, rect) {
-            let testX = circle.x;
-            let testY = circle.y;
-
-            if (circle.x < rect.x) testX = rect.x;
-            else if (circle.x > rect.x + rect.w) testX = rect.x + rect.w;
-
-            if (circle.y < rect.y) testY = rect.y;
-            else if (circle.y > rect.y + rect.h) testY = rect.y + rect.h;
-
-            let distX = circle.x - testX;
-            let distY = circle.y - testY;
-            let distance = Math.sqrt((distX*distX) + (distY*distY));
-
-            if (distance < circle.radius) {
-                let pushDist = circle.radius - distance;
-                let nx = distance === 0 ? 1 : distX / distance;
-                let ny = distance === 0 ? 0 : distY / distance;
-                
-                circle.x += nx * pushDist;
-                circle.y += ny * pushDist;
+                let cosB = Math.cos(col.angle);
+                let sinB = Math.sin(col.angle);
+                circle.x = col.cx + (rx * cosB - ry * sinB);
+                circle.y = col.cy + (rx * sinB + ry * cosB);
                 return true;
             }
             return false;
         }
 
-        function moveEntityWithPhysics(entity, dx, dy, colliders) {
+        function moveEntityWithPhysics(entity, dx, dy, localColliders) {
             entity.x += dx;
             entity.y += dy;
             for(let pass=0; pass<3; pass++) {
-                for (let c of colliders) {
-                    resolveCircleRect(entity, c);
+                for (let c of localColliders) {
+                    resolveCircleCollider(entity, c);
                 }
             }
         }
 
-        // Raycast logic
-        function checkRaycast(x1, y1, x2, y2) {
-            const dist = Math.hypot(x2 - x1, y2 - y1);
-            const steps = Math.floor(dist / 20);
-            const dx = (x2 - x1) / steps;
-            const dy = (y2 - y1) / steps;
-
-            let checkX = x1, checkY = y1;
-            for (let i = 0; i < steps; i++) {
-                checkX += dx;
-                checkY += dy;
-                let colliders = getNearbyColliders(checkX, checkY);
-                for (let c of colliders) {
-                    if (checkX >= c.x && checkX <= c.x + c.w && checkY >= c.y && checkY <= c.y + c.h) {
-                        return false; 
+        // --- SPATIAL HASH ---
+        class SpatialHash {
+            constructor(cellSize) {
+                this.cellSize = cellSize;
+                this.grid = new Map();
+            }
+            insert(obj) {
+                let minX = Math.floor(obj.aabb.minX / this.cellSize);
+                let maxX = Math.floor(obj.aabb.maxX / this.cellSize);
+                let minY = Math.floor(obj.aabb.minY / this.cellSize);
+                let maxY = Math.floor(obj.aabb.maxY / this.cellSize);
+                for (let x = minX; x <= maxX; x++) {
+                    for (let y = minY; y <= maxY; y++) {
+                        let k = `${x},${y}`;
+                        if (!this.grid.has(k)) this.grid.set(k, []);
+                        this.grid.get(k).push(obj);
                     }
                 }
             }
-            return true;
+            query(x, y, w, h) {
+                let minX = Math.floor(x / this.cellSize);
+                let maxX = Math.floor((x + w) / this.cellSize);
+                let minY = Math.floor(y / this.cellSize);
+                let maxY = Math.floor((y + h) / this.cellSize);
+                let result = new Set();
+                for (let i = minX; i <= maxX; i++) {
+                    for (let j = minY; j <= maxY; j++) {
+                        let k = `${i},${j}`;
+                        if (this.grid.has(k)) {
+                            for (let obj of this.grid.get(k)) result.add(obj);
+                        }
+                    }
+                }
+                return Array.from(result);
+            }
+        }
+
+        let collidersHash;
+        let buildingsHash;
+        let generatedRegions = new Set();
+
+        // --- PROCEDURAL GENERATION ---
+        function generateBuildingsInRegion(rx, ry, rw, rh) {
+            let attempts = 25; 
+            
+            // 1. GENERATE BUILDINGS & INDOOR OBSTACLES
+            for (let i = 0; i < attempts; i++) {
+                let bw = Math.random() * 600 + 400; 
+                let bh = Math.random() * 600 + 400;
+                let bx = rx + Math.random() * (rw - bw);
+                let by = ry + Math.random() * (rh - bh);
+
+                // Safe zones clearance
+                if (Math.hypot(bx + bw/2 - 1000, by + bh/2 - 1000) < 1200) continue;
+                if (Math.hypot(bx + bw/2 - extractionPoint.x, by + bh/2 - extractionPoint.y) < 2000) continue;
+
+                let overlapBoxes = collidersHash.query(bx - 50, by - 50, bw + 100, bh + 100);
+                let overlap = false;
+                for (let ob of overlapBoxes) {
+                    if (bx - 50 < ob.aabb.maxX && bx + bw + 50 > ob.aabb.minX &&
+                        by - 50 < ob.aabb.maxY && by + bh + 50 > ob.aabb.minY) {
+                        overlap = true; break;
+                    }
+                }
+
+                if (!overlap) {
+                    buildingsHash.insert({
+                        x: bx, y: by, w: bw, h: bh,
+                        aabb: { minX: bx, maxX: bx+bw, minY: by, maxY: by+bh }
+                    });
+
+                    let wallThick = 20;
+                    let doorSize = 100; 
+
+                    function addWall(wx, wy, ww, wh) {
+                        let cx = wx + ww/2; let cy = wy + wh/2;
+                        collidersHash.insert(createCollider(cx, cy, ww, wh, 0, true, '#3a3d40'));
+                    }
+
+                    // Doors and Walls
+                    let hasTopDoor = Math.random() > 0.3;
+                    if (hasTopDoor) {
+                        let dp = wallThick + Math.random() * (bw - doorSize - wallThick*2);
+                        addWall(bx, by, dp, wallThick);
+                        addWall(bx + dp + doorSize, by, bw - dp - doorSize, wallThick);
+                    } else addWall(bx, by, bw, wallThick);
+
+                    let hasBotDoor = Math.random() > 0.3;
+                    if (hasBotDoor) {
+                        let dp = wallThick + Math.random() * (bw - doorSize - wallThick*2);
+                        addWall(bx, by + bh - wallThick, dp, wallThick);
+                        addWall(bx + dp + doorSize, by + bh - wallThick, bw - dp - doorSize, wallThick);
+                    } else addWall(bx, by + bh - wallThick, bw, wallThick);
+
+                    let hasLeftDoor = Math.random() > 0.3;
+                    if (hasLeftDoor) {
+                        let dp = wallThick + Math.random() * (bh - doorSize - wallThick*2);
+                        addWall(bx, by, wallThick, dp);
+                        addWall(bx, by + dp + doorSize, wallThick, bh - dp - doorSize);
+                    } else addWall(bx, by, wallThick, bh);
+
+                    let hasRightDoor = (!hasTopDoor && !hasBotDoor && !hasLeftDoor) ? true : Math.random() > 0.3;
+                    if (hasRightDoor) {
+                        let dp = wallThick + Math.random() * (bh - doorSize - wallThick*2);
+                        addWall(bx + bw - wallThick, by, wallThick, dp);
+                        addWall(bx + bw - wallThick, by + dp + doorSize, wallThick, bh - dp - doorSize);
+                    } else addWall(bx + bw - wallThick, by, wallThick, bh);
+
+                    // Dynamic Complex Indoor Obstacles with Arbitrary Rotations
+                    let placedCircles = [];
+                    let numObsAttempts = Math.floor(Math.random() * 20) + 10;
+                    let safeArea = { x: bx + 40, y: by + 40, w: bw - 80, h: bh - 80 };
+
+                    for (let o = 0; o < numObsAttempts; o++) {
+                        let ot = indoorObstacleLibrary[Math.floor(Math.random() * indoorObstacleLibrary.length)];
+                        let ox = safeArea.x + Math.random() * safeArea.w;
+                        let oy = safeArea.y + Math.random() * safeArea.h;
+                        
+                        if (ox - ot.radius < safeArea.x || ox + ot.radius > safeArea.x + safeArea.w ||
+                            oy - ot.radius < safeArea.y || oy + ot.radius > safeArea.y + safeArea.h) continue;
+
+                        let boundsOverlap = false;
+                        for (let pc of placedCircles) {
+                            if (Math.hypot(pc.x - ox, pc.y - oy) < pc.r + ot.radius + 15) {
+                                boundsOverlap = true; break;
+                            }
+                        }
+
+                        if (!boundsOverlap) {
+                            placedCircles.push({x: ox, y: oy, r: ot.radius});
+                            let angle = Math.random() * Math.PI * 2; // Arbitrary 360 rotation
+                            
+                            for (let part of ot.parts) {
+                                let pcx = ox + part.x * Math.cos(angle) - part.y * Math.sin(angle);
+                                let pcy = oy + part.x * Math.sin(angle) + part.y * Math.cos(angle);
+                                collidersHash.insert(createCollider(pcx, pcy, part.w, part.h, angle, false, ot.color));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. GENERATE OUTDOOR OBSTACLES
+            let outAttempts = 20;
+            for (let i = 0; i < outAttempts; i++) {
+                let ox = rx + Math.random() * rw;
+                let oy = ry + Math.random() * rh;
+                let ot = outdoorObstacleLibrary[Math.floor(Math.random() * outdoorObstacleLibrary.length)];
+
+                if (Math.hypot(ox - 1000, oy - 1000) < 1200) continue; // Start safe zone
+                if (Math.hypot(ox - extractionPoint.x, oy - extractionPoint.y) < 2000) continue; // End safe zone
+
+                let r = ot.radius + 80; 
+                let overlapBoxes = collidersHash.query(ox - r, oy - r, r*2, r*2);
+                let isClear = true;
+
+                for(let ob of overlapBoxes) {
+                    if (Math.hypot(ob.cx - ox, ob.cy - oy) < r + Math.max(ob.w, ob.h)/2) {
+                        isClear = false; break;
+                    }
+                }
+
+                if (isClear) {
+                    let angle = Math.random() * Math.PI * 2; // Arbitrary 360 rotation
+                    for (let part of ot.parts) {
+                        let pcx = ox + part.x * Math.cos(angle) - part.y * Math.sin(angle);
+                        let pcy = oy + part.x * Math.sin(angle) + part.y * Math.cos(angle);
+                        collidersHash.insert(createCollider(pcx, pcy, part.w, part.h, angle, false, ot.color));
+                    }
+                }
+            }
+        }
+
+        function populateArea(px, py) {
+            let regionSize = 3000;
+            let areaX = Math.floor(px / regionSize) * regionSize;
+            let areaY = Math.floor(py / regionSize) * regionSize;
+            
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    let ax = areaX + i * regionSize;
+                    let ay = areaY + j * regionSize;
+                    let key = `${ax},${ay}`;
+                    if (!generatedRegions.has(key)) {
+                        generateBuildingsInRegion(ax, ay, regionSize, regionSize);
+                        generatedRegions.add(key);
+                    }
+                }
+            }
+        }
+
+        // --- RAYCASTING FOR VISION CONES ---
+        function getLineIntersection(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
+            let s1_x = p1_x - p0_x;
+            let s1_y = p1_y - p0_y;
+            let s2_x = p3_x - p2_x;
+            let s2_y = p3_y - p2_y;
+
+            let denom = (-s2_x * s1_y + s1_x * s2_y);
+            if (denom === 0) return null;
+
+            let s = (-s1_y * (p0_x - p2_x) + s1_x * (p0_y - p2_y)) / denom;
+            let t = ( s2_x * (p0_y - p2_y) - s2_y * (p0_x - p2_x)) / denom;
+
+            if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+                return t * Math.hypot(s1_x, s1_y);
+            }
+            return null;
+        }
+
+        function castRay(startX, startY, angle, maxDist, localColliders) {
+            let endX = startX + Math.cos(angle) * maxDist;
+            let endY = startY + Math.sin(angle) * maxDist;
+            let closestDist = maxDist;
+
+            let minX = Math.min(startX, endX); let maxX = Math.max(startX, endX);
+            let minY = Math.min(startY, endY); let maxY = Math.max(startY, endY);
+
+            for (let c of localColliders) {
+                if (maxX < c.aabb.minX || minX > c.aabb.maxX || maxY < c.aabb.minY || minY > c.aabb.maxY) continue;
+
+                for (let l of c.lines) {
+                    let hitDist = getLineIntersection(startX, startY, endX, endY, l[0], l[1], l[2], l[3]);
+                    if (hitDist !== null && hitDist < closestDist) {
+                        closestDist = hitDist;
+                    }
+                }
+            }
+            return closestDist;
         }
 
         function spawnEnemy(enforcerChance = 0) {
-            let angle = Math.random() * Math.PI * 2;
+            let validSpawn = false;
+            let ex, ey, angle;
             let safeDistance = Math.max(canvas.width, canvas.height) + 200; 
-            
-            let ex = player.x + Math.cos(angle) * safeDistance;
-            let ey = player.y + Math.sin(angle) * safeDistance;
+
+            for(let i=0; i<10; i++) {
+                angle = Math.random() * Math.PI * 2;
+                ex = player.x + Math.cos(angle) * safeDistance;
+                ey = player.y + Math.sin(angle) * safeDistance;
+                
+                let hits = collidersHash.query(ex - 20, ey - 20, 40, 40);
+                let clear = true;
+                let testCircle = {x:ex, y:ey, radius:15};
+                for(let c of hits) {
+                    if(resolveCircleCollider(testCircle, c)) { clear = false; break; }
+                }
+                if(clear) { validSpawn = true; break; }
+            }
+
+            if(!validSpawn) return;
 
             let isEnforcer = Math.random() < enforcerChance;
 
@@ -437,8 +611,8 @@
                 speed: isEnforcer ? 6 : 3.5, 
                 state: 'patrol',
                 targetX: ex, targetY: ey,
-                angle: Math.random() * Math.PI * 2, // Facing direction
-                fov: isEnforcer ? Math.PI * 0.6 : Math.PI * 0.3, // Vision angle breadth
+                angle: Math.random() * Math.PI * 2, 
+                fov: isEnforcer ? Math.PI * 0.6 : Math.PI * 0.3, 
                 visionRange: isEnforcer ? 700 : 500,
                 stuckTimer: 0,
                 slideDir: Math.random() > 0.5 ? 1 : -1,
@@ -460,9 +634,13 @@
             extractionPoint.x = player.x + Math.cos(extAngle) * 30000;
             extractionPoint.y = player.y + Math.sin(extAngle) * 30000;
 
-            chunks = {};
+            collidersHash = new SpatialHash(1000);
+            buildingsHash = new SpatialHash(3000);
+            generatedRegions = new Set();
             enemies = [];
             gameActive = true;
+
+            populateArea(player.x, player.y);
 
             for(let i=0; i<12; i++) spawnEnemy(0);
             
@@ -476,7 +654,9 @@
         function update() {
             if (!gameActive) return;
 
-            // 1. Stamina & Sprint Logic
+            populateArea(player.x, player.y);
+
+            // 1. Stamina & Movement
             let moving = false;
             let dx = 0; let dy = 0;
             
@@ -500,9 +680,8 @@
                     staminaBar.classList.add('exhausted');
                 }
             } else {
-                // Regen stamina
-                if (!moving) player.stamina += 0.8; // Rest fast
-                else player.stamina += 0.3; // Walk rest slow
+                if (!moving) player.stamina += 0.8; 
+                else player.stamina += 0.3; 
 
                 if (player.stamina >= 30) {
                     player.exhausted = false;
@@ -513,17 +692,16 @@
 
             staminaBar.style.width = `${player.stamina}%`;
 
-            // Normalize movement vector
             if (moving) {
                 let length = Math.sqrt(dx*dx + dy*dy);
                 dx = (dx / length) * currentSpeed;
                 dy = (dy / length) * currentSpeed;
             }
 
-            let localColliders = getNearbyColliders(player.x, player.y);
-            moveEntityWithPhysics(player, dx, dy, localColliders);
+            let localPlayerColliders = collidersHash.query(player.x - 50, player.y - 50, 100, 100);
+            moveEntityWithPhysics(player, dx, dy, localPlayerColliders);
 
-            // 2. Win Condition & Difficulty Scaling
+            // 2. Win & Difficulty
             let distToWin = Math.hypot(extractionPoint.x - player.x, extractionPoint.y - player.y);
             distanceDisplay.innerText = `Distance to Extraction: ${Math.floor(distToWin / 10)}m`;
             
@@ -548,11 +726,11 @@
                 threatLevelDisplay.style.color = "#e74c3c";
             }
 
-            // 3. Update Camera
+            // 3. Camera
             camera.x = player.x - canvas.width / 2;
             camera.y = player.y - canvas.height / 2;
 
-            // 4. Enemy AI & Stealth Mechanics
+            // 4. Enemy AI & Raycast Stealth
             player.isSpotted = false;
             
             if (enemies.length < maxEnemies && Math.random() < 0.03 + (currentProgress * 0.05)) {
@@ -562,7 +740,6 @@
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let e = enemies[i];
 
-                // Despawn far enemies
                 if (Math.hypot(e.x - player.x, e.y - player.y) > 4000) {
                     enemies.splice(i, 1);
                     continue;
@@ -571,23 +748,24 @@
                 let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
                 let angleToPlayer = Math.atan2(player.y - e.y, player.x - e.x);
                 
-                // NOISE MECHANIC: Sprinting is loud
                 if (player.isSprinting && distToPlayer < 500) {
-                    // Turn towards noise and investigate
                     e.state = 'investigate';
                     e.targetX = player.x;
                     e.targetY = player.y;
                 }
 
-                // VISION CONE MECHANIC
                 let canSee = false;
                 if (distToPlayer < e.visionRange) {
                     let angleDiff = Math.abs(angleToPlayer - e.angle);
                     if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
 
-                    // If inside the cone, or if literally touching the enemy
                     if (angleDiff < e.fov / 2 || distToPlayer < 70) {
-                        if (checkRaycast(e.x, e.y, player.x, player.y)) {
+                        let queryW = Math.abs(e.x - player.x);
+                        let queryH = Math.abs(e.y - player.y);
+                        let localSightColliders = collidersHash.query(Math.min(e.x, player.x), Math.min(e.y, player.y), queryW, queryH);
+                        
+                        let hitDist = castRay(e.x, e.y, angleToPlayer, distToPlayer, localSightColliders);
+                        if (hitDist >= distToPlayer - 1) { 
                             canSee = true;
                         }
                     }
@@ -609,10 +787,7 @@
                 let oldY = e.y;
 
                 if (edist > 10) {
-                    // Turn smoothly towards movement direction
                     let targetAngle = Math.atan2(edy, edx);
-                    
-                    // Simple angle smoothing
                     let ad = targetAngle - e.angle;
                     if (ad > Math.PI) ad -= Math.PI*2;
                     if (ad < -Math.PI) ad += Math.PI*2;
@@ -627,7 +802,8 @@
                         if (e.stuckTimer > 50) e.slideDir *= -1; 
                     }
 
-                    moveEntityWithPhysics(e, moveX, moveY, localColliders);
+                    let eColls = collidersHash.query(e.x - 40, e.y - 40, 80, 80);
+                    moveEntityWithPhysics(e, moveX, moveY, eColls);
 
                     let actualMoved = Math.hypot(e.x - oldX, e.y - oldY);
                     if (actualMoved < e.speed * 0.4 && e.state !== 'patrol') {
@@ -635,7 +811,6 @@
                     } else {
                         e.stuckTimer = 0;
                     }
-
                 } else {
                     e.state = 'patrol';
                     e.targetX = e.x + (Math.random() > 0.5 ? 800 : -800);
@@ -667,39 +842,29 @@
             ctx.save();
             ctx.translate(-camera.x, -camera.y);
 
-            let startCol = Math.floor(camera.x / CHUNK_SIZE);
-            let endCol = Math.floor((camera.x + canvas.width) / CHUNK_SIZE);
-            let startRow = Math.floor(camera.y / CHUNK_SIZE);
-            let endRow = Math.floor((camera.y + canvas.height) / CHUNK_SIZE);
-
-            // Draw Buildings & Obstacles
-            for (let c = startCol - 1; c <= endCol + 1; c++) {
-                for (let r = startRow - 1; r <= endRow + 1; r++) {
-                    let data = getChunkData(c, r);
-
-                    ctx.fillStyle = '#1c1f21'; 
-                    for (let b of data.buildings) {
-                        ctx.fillRect(b.x, b.y, b.w, b.h);
-                        
-                        for(let obs of b.obstacles) {
-                            ctx.fillStyle = obs.color;
-                            ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-                            ctx.strokeStyle = '#050505';
-                            ctx.lineWidth = 2;
-                            ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
-                        }
-                    }
-
-                    ctx.fillStyle = '#3a3d40'; 
-                    for (let col of data.colliders) {
-                        if (col.isWall) {
-                            ctx.fillRect(col.x, col.y, col.w, col.h);
-                        }
-                    }
-                }
+            // Render visible building floors
+            let visibleBuildings = buildingsHash.query(camera.x, camera.y, canvas.width, canvas.height);
+            ctx.fillStyle = '#1c1f21'; 
+            for (let b of visibleBuildings) {
+                ctx.fillRect(b.x, b.y, b.w, b.h);
             }
 
-            // Draw Extraction Point
+            // Render ALL OBB Colliders (Walls + Indoor Obstacles + Outdoor Obstacles)
+            let visibleColliders = collidersHash.query(camera.x, camera.y, canvas.width, canvas.height);
+            for (let col of visibleColliders) {
+                ctx.fillStyle = col.color;
+                ctx.beginPath();
+                ctx.moveTo(col.corners[0][0], col.corners[0][1]);
+                for(let i=1; i<4; i++) ctx.lineTo(col.corners[i][0], col.corners[i][1]);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = col.isWall ? '#2c2f33' : 'rgba(0,0,0,0.6)';
+                ctx.lineWidth = col.isWall ? 2 : 1;
+                ctx.stroke();
+            }
+
+            // Extraction Point
             ctx.beginPath();
             ctx.arc(extractionPoint.x, extractionPoint.y, extractionPoint.radius, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(46, 204, 113, 0.2)';
@@ -707,8 +872,14 @@
             ctx.strokeStyle = '#2ecc71';
             ctx.lineWidth = 3;
             ctx.stroke();
+            
+            ctx.fillStyle = '#2ecc71';
+            ctx.font = 'bold 30px Courier New';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("EXIT", extractionPoint.x, extractionPoint.y);
 
-            // Draw Noise Circle if sprinting
+            // Noise Circle
             if (player.isSprinting) {
                 ctx.beginPath();
                 ctx.arc(player.x, player.y, 500, 0, Math.PI * 2);
@@ -719,24 +890,28 @@
                 ctx.stroke();
             }
 
-            // Draw Enemies & Vision Cones
+            // Enemies & Vision Cones
             for (let e of enemies) {
-                // Draw Vision Cone
+                let rayCount = 45; 
+                let sAngle = e.angle - e.fov / 2;
+                let localSightWalls = collidersHash.query(e.x - e.visionRange, e.y - e.visionRange, e.visionRange * 2, e.visionRange * 2);
+
                 ctx.beginPath();
                 ctx.moveTo(e.x, e.y);
-                ctx.arc(e.x, e.y, e.visionRange, e.angle - e.fov/2, e.angle + e.fov/2);
-                ctx.lineTo(e.x, e.y);
                 
-                if (e.state === 'chase') {
-                    ctx.fillStyle = 'rgba(231, 76, 60, 0.25)';
-                } else if (e.state === 'investigate') {
-                    ctx.fillStyle = 'rgba(230, 126, 34, 0.15)';
-                } else {
-                    ctx.fillStyle = e.isEnforcer ? 'rgba(241, 196, 15, 0.1)' : 'rgba(255, 255, 255, 0.05)';
+                for(let i = 0; i <= rayCount; i++) {
+                    let a = sAngle + (i / rayCount) * e.fov;
+                    let dist = castRay(e.x, e.y, a, e.visionRange, localSightWalls);
+                    ctx.lineTo(e.x + Math.cos(a) * dist, e.y + Math.sin(a) * dist);
                 }
+                ctx.closePath();
+                
+                if (e.state === 'chase') ctx.fillStyle = 'rgba(231, 76, 60, 0.25)';
+                else if (e.state === 'investigate') ctx.fillStyle = 'rgba(230, 126, 34, 0.15)';
+                else ctx.fillStyle = e.isEnforcer ? 'rgba(241, 196, 15, 0.1)' : 'rgba(255, 255, 255, 0.05)';
                 ctx.fill();
 
-                // Draw Enemy Body
+                // Enemy Body
                 ctx.beginPath();
                 ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
                 ctx.fillStyle = e.color;
@@ -746,7 +921,7 @@
                 ctx.stroke();
             }
 
-            // Draw Player
+            // Player
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
             ctx.fillStyle = player.color;
