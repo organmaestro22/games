@@ -34,6 +34,7 @@
             left: 20px;
             pointer-events: none;
             text-shadow: 2px 2px 0 #000;
+            z-index: 5;
         }
 
         .stat {
@@ -121,6 +122,7 @@
             color: white;
             border: none;
             padding: 15px 40px;
+            margin: 10px;
             font-size: 20px;
             font-weight: bold;
             cursor: pointer;
@@ -137,8 +139,10 @@
 
         .win-btn { background: #2ecc71; }
         .win-btn:hover { background: #27ae60; }
+        .neutral-btn { background: #34495e; }
+        .neutral-btn:hover { background: #2c3e50; }
 
-        #game-over-screen, #win-screen { display: none; }
+        .hidden { display: none !important; }
         
         .enemy-legend {
             display: flex;
@@ -155,9 +159,21 @@
         .config-ui {
             margin-bottom: 25px;
             pointer-events: auto;
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
         }
         
-        select {
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 15px;
+            width: 400px;
+        }
+
+        select, input[type="range"] {
             font-size: 18px;
             padding: 8px;
             background: #222;
@@ -166,6 +182,11 @@
             border-radius: 5px;
             cursor: pointer;
             outline: none;
+        }
+
+        input[type="range"]:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -180,12 +201,12 @@
         <div id="stamina-container">
             <div id="stamina-bar"></div>
         </div>
+        <div style="margin-top: 10px; font-size: 14px; color: #aaa;">[ESC] Pause Menu</div>
     </div>
 
     <div id="start-screen" class="screen">
         <h1>ESCAPE FROM ICE</h1>
-        <p>Reach the <b>Extraction Point</b> 3,000m away.<br>
-        Use <b>W A S D</b> to sneak. Hold <b>SHIFT</b> to sprint.</p>
+        <p>Reach the <b>Extraction Point</b> 3,000m away.</p>
         
         <div class="enemy-legend">
             <div class="legend-item"><span class="dot" style="background: #e74c3c;"></span> Agents (Narrow vision, slower)</div>
@@ -194,27 +215,79 @@
         </div>
 
         <div class="config-ui">
-            <label for="difficulty-select" style="font-size: 20px; font-weight: bold;">DIFFICULTY: </label>
-            <select id="difficulty-select">
-                <option value="1">1 - Very Easy</option>
-                <option value="2">2 - Easy</option>
-                <option value="3" selected>3 - Normal</option>
-                <option value="4">4 - Hard</option>
-                <option value="5">5 - Extreme</option>
-                <option value="6">6 - IMPOSSIBLE</option>
-            </select>
+            <div class="control-group">
+                <label for="difficulty-select" style="font-size: 20px; font-weight: bold;">DIFFICULTY: </label>
+                <select id="difficulty-select">
+                    <option value="1">1 - Very Easy</option>
+                    <option value="2">2 - Easy</option>
+                    <option value="3" selected>3 - Normal</option>
+                    <option value="4">4 - Hard</option>
+                    <option value="5">5 - Extreme</option>
+                    <option value="6">6 - IMPOSSIBLE</option>
+                </select>
+            </div>
+            
+            <div class="control-group" style="margin-top: 25px; border-top: 1px solid #444; padding-top: 15px;">
+                <label for="control-select" style="font-size: 18px;">Input Mode: </label>
+                <select id="control-select">
+                    <option value="keyboard" selected>Keyboard (WASD)</option>
+                    <option value="mouse">Mouse (Joystick)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="sensitivity-slider" style="font-size: 16px;">Mouse Radius:</label>
+                <input type="range" id="sensitivity-slider" min="50" max="400" value="150" disabled>
+            </div>
         </div>
 
         <button id="start-btn">BEGIN ESCAPE</button>
     </div>
 
-    <div id="game-over-screen" class="screen">
+    <div id="pause-screen" class="screen hidden">
+        <h1 style="color: #fff;">PAUSED</h1>
+        
+        <div class="config-ui">
+            <div class="control-group">
+                <label for="pause-difficulty" style="font-size: 20px; font-weight: bold;">DIFFICULTY: </label>
+                <select id="pause-difficulty">
+                    <option value="1">1 - Very Easy</option>
+                    <option value="2">2 - Easy</option>
+                    <option value="3">3 - Normal</option>
+                    <option value="4">4 - Hard</option>
+                    <option value="5">5 - Extreme</option>
+                    <option value="6">6 - IMPOSSIBLE</option>
+                </select>
+            </div>
+            
+            <div class="control-group" style="margin-top: 25px; border-top: 1px solid #444; padding-top: 15px;">
+                <label for="pause-control" style="font-size: 18px;">Input Mode: </label>
+                <select id="pause-control">
+                    <option value="keyboard">Keyboard (WASD)</option>
+                    <option value="mouse">Mouse (Joystick)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="pause-sensitivity" style="font-size: 16px;">Mouse Radius:</label>
+                <input type="range" id="pause-sensitivity" min="50" max="400" value="150">
+            </div>
+        </div>
+
+        <div style="display: flex;">
+            <button id="resume-btn" class="win-btn">RESUME</button>
+            <button id="pause-restart-btn" class="neutral-btn">RESTART CURRENT</button>
+        </div>
+        <button id="apply-restart-btn">APPLY SETTINGS & RESTART</button>
+    </div>
+
+    <div id="game-over-screen" class="screen hidden">
         <h1>Caught.</h1>
         <p>Have fun on the plane back to Mexico</p>
         <button id="restart-btn">Try Again?</button>
     </div>
 
-    <div id="win-screen" class="screen">
+    <div id="win-screen" class="screen hidden">
         <h1 class="win-title">ESCAPED.</h1>
         <p>You made it to the safehouse. You're safe, for now.</p>
         <button id="win-restart-btn" class="win-btn">Play Again</button>
@@ -230,7 +303,7 @@
                 sprintDrain: 0.6,
                 regenIdle: 0.8,
                 regenWalk: 0.3,
-                level6SpeedModifier: 1.3 // Speed multiplier ONLY for level 6
+                level6SpeedModifier: 1.3 
             },
             map: {
                 extractionDist: 30000, 
@@ -239,14 +312,13 @@
             enemies: {
                 agentSpeed: 3.5,
                 agentVision: 500,
-                enforcerSpeed: 6.5, // Buffed
-                enforcerVision: 750, // Buffed
-                spySpeed: 6.5, // Buffed
-                spyVision: 1000, // Buffed
-                spyRevealDist: 200 // Tighter reveal distance
+                enforcerSpeed: 6.5, 
+                enforcerVision: 750, 
+                spySpeed: 6.5, 
+                spyVision: 1000, 
+                spyRevealDist: 200 
             },
             difficulties: {
-                // Ramped up base enemies and progression
                 "1": { baseEnemies: 8, maxAddEnemies: 15, enforcerChance: 0.2, spyChance: 0.0, lookAround: false },
                 "2": { baseEnemies: 12, maxAddEnemies: 25, enforcerChance: 0.4, spyChance: 0.0, lookAround: false },
                 "3": { baseEnemies: 18, maxAddEnemies: 35, enforcerChance: 0.6, spyChance: 0.2, lookAround: false },
@@ -260,13 +332,40 @@
         const ctx = canvas.getContext('2d');
 
         const startScreen = document.getElementById('start-screen');
+        const pauseScreen = document.getElementById('pause-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
         const winScreen = document.getElementById('win-screen');
+        
         const distanceDisplay = document.getElementById('distance-display');
         const statusDisplay = document.getElementById('status');
         const threatLevelDisplay = document.getElementById('threat-level');
         const staminaBar = document.getElementById('stamina-bar');
+        
         const difficultySelect = document.getElementById('difficulty-select');
+        const controlSelect = document.getElementById('control-select');
+        const sensitivitySlider = document.getElementById('sensitivity-slider');
+        
+        const pauseDifficulty = document.getElementById('pause-difficulty');
+        const pauseControl = document.getElementById('pause-control');
+        const pauseSensitivity = document.getElementById('pause-sensitivity');
+
+        function syncUI() {
+            let mode = controlSelect.value;
+            sensitivitySlider.disabled = (mode === 'keyboard');
+            
+            pauseDifficulty.value = currentDifficulty;
+            pauseControl.value = controlMode;
+            pauseSensitivity.value = mouseRadius;
+            pauseSensitivity.disabled = (controlMode === 'keyboard');
+        }
+
+        controlSelect.addEventListener('change', () => {
+            sensitivitySlider.disabled = (controlSelect.value === 'keyboard');
+        });
+        
+        pauseControl.addEventListener('change', () => {
+            pauseSensitivity.disabled = (pauseControl.value === 'keyboard');
+        });
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -276,8 +375,29 @@
         resize();
 
         const keys = {};
-        window.addEventListener('keydown', e => keys[e.code] = true);
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+        let isMouseDown = false;
+        let controlMode = 'keyboard'; 
+        let mouseRadius = 150;
+        let isPaused = false;
+
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'Escape' && gameActive) {
+                togglePause();
+            }
+        });
         window.addEventListener('keyup', e => keys[e.code] = false);
+
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+        canvas.addEventListener('mousedown', () => isMouseDown = true);
+        canvas.addEventListener('mouseup', () => isMouseDown = false);
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
 
         let gameActive = false;
         let camera = { x: 0, y: 0 };
@@ -485,7 +605,6 @@
                         collidersHash.insert(createCollider(cx, cy, ww, wh, 0, true, '#3a3d40'));
                     }
 
-                    // Doors and Walls
                     let hasTopDoor = Math.random() > 0.3;
                     if (hasTopDoor) {
                         let dp = wallThick + Math.random() * (bw - doorSize - wallThick*2);
@@ -597,19 +716,15 @@
 
         // --- SPAWN SAFEHOUSE ---
         function createSpawnSafehouse() {
-            // A fixed 400x400 building exactly at 1000, 1000
             buildingsHash.insert({
                 x: 800, y: 800, w: 400, h: 400,
                 aabb: { minX: 800, maxX: 1200, minY: 800, maxY: 1200 }
             });
 
             let c = createCollider;
-            // Top, Bottom, Left walls
             collidersHash.insert(c(1000, 810, 400, 20, 0, true, '#3a3d40'));
             collidersHash.insert(c(1000, 1190, 400, 20, 0, true, '#3a3d40'));
             collidersHash.insert(c(810, 1000, 20, 400, 0, true, '#3a3d40'));
-            
-            // Right wall (with an open exit door in the middle)
             collidersHash.insert(c(1190, 870, 20, 140, 0, true, '#3a3d40'));
             collidersHash.insert(c(1190, 1130, 20, 140, 0, true, '#3a3d40'));
         }
@@ -694,17 +809,45 @@
                 visionRange: isSpy ? CONFIG.enemies.spyVision : (isEnforcer ? CONFIG.enemies.enforcerVision : CONFIG.enemies.agentVision),
                 stuckTimer: 0,
                 slideDir: Math.random() > 0.5 ? 1 : -1,
-                scanTime: Math.random() * 100, // For the look-around sweep
+                scanTime: Math.random() * 100, 
                 color: isSpy ? '#2ecc71' : (isEnforcer ? '#f1c40f' : '#e74c3c')
             });
         }
 
-        function startGame() {
-            currentDifficulty = difficultySelect.value;
+        function togglePause() {
+            isPaused = !isPaused;
+            if (isPaused) {
+                syncUI();
+                pauseScreen.classList.remove('hidden');
+            } else {
+                pauseScreen.classList.add('hidden');
+            }
+        }
 
-            startScreen.style.display = 'none';
-            gameOverScreen.style.display = 'none';
-            winScreen.style.display = 'none';
+        function startGameFromMenu() {
+            currentDifficulty = difficultySelect.value;
+            controlMode = controlSelect.value;
+            mouseRadius = parseInt(sensitivitySlider.value);
+            startCoreGame();
+        }
+
+        function restartCurrent() {
+            togglePause();
+            startCoreGame();
+        }
+
+        function applyAndRestart() {
+            currentDifficulty = pauseDifficulty.value;
+            controlMode = pauseControl.value;
+            mouseRadius = parseInt(pauseSensitivity.value);
+            togglePause();
+            startCoreGame();
+        }
+
+        function startCoreGame() {
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            winScreen.classList.add('hidden');
             
             player.x = 1000;
             player.y = 1000;
@@ -720,54 +863,81 @@
             generatedRegions = new Set();
             enemies = [];
             gameActive = true;
+            isPaused = false;
 
-            // Generate spawn base
             createSpawnSafehouse();
             populateArea(player.x, player.y);
 
             let diffSettings = CONFIG.difficulties[currentDifficulty];
             for(let i=0; i < diffSettings.baseEnemies; i++) spawnEnemy(0, 0);
-            
-            requestAnimationFrame(update);
         }
 
-        document.getElementById('start-btn').addEventListener('pointerdown', startGame);
-        document.getElementById('restart-btn').addEventListener('pointerdown', startGame);
-        document.getElementById('win-restart-btn').addEventListener('pointerdown', startGame);
+        // Button Bindings
+        document.getElementById('start-btn').addEventListener('pointerdown', startGameFromMenu);
+        document.getElementById('restart-btn').addEventListener('pointerdown', startCoreGame);
+        document.getElementById('win-restart-btn').addEventListener('pointerdown', startCoreGame);
+        
+        document.getElementById('resume-btn').addEventListener('pointerdown', togglePause);
+        document.getElementById('pause-restart-btn').addEventListener('pointerdown', restartCurrent);
+        document.getElementById('apply-restart-btn').addEventListener('pointerdown', applyAndRestart);
 
         function update() {
-            if (!gameActive) return;
+            if (!gameActive || isPaused) return;
 
             populateArea(player.x, player.y);
 
-            // 1. Stamina & Movement
+            // 1. Inputs, Stamina & Movement
             let moving = false;
             let dx = 0; let dy = 0;
-            
-            if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
-            if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
-            if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
-            if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
-
-            if (dx !== 0 || dy !== 0) moving = true;
-
+            let speedMultiplier = 1.0;
             player.isSprinting = false;
+
+            if (controlMode === 'keyboard') {
+                if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+                if (dx !== 0 || dy !== 0) moving = true;
+                
+                if ((keys['ShiftLeft'] || keys['ShiftRight']) && moving && !player.exhausted) {
+                    player.isSprinting = true;
+                }
+            } else if (controlMode === 'mouse') {
+                let cx = canvas.width / 2;
+                let cy = canvas.height / 2;
+                let mouseDx = mouseX - cx;
+                let mouseDy = mouseY - cy;
+                let dist = Math.hypot(mouseDx, mouseDy);
+                
+                if (dist > 10) { 
+                    moving = true;
+                    dx = mouseDx / dist;
+                    dy = mouseDy / dist;
+                    speedMultiplier = Math.min(dist / mouseRadius, 1.0);
+                    
+                    if ((isMouseDown || keys['ShiftLeft'] || keys['ShiftRight']) && !player.exhausted && speedMultiplier > 0.5) {
+                        player.isSprinting = true;
+                        speedMultiplier = 1.0; 
+                    }
+                }
+            }
+
             let currentSpeed = CONFIG.player.walkSpeed;
             let sprintMax = CONFIG.player.sprintSpeed;
 
-            // Apply Level 6 Speed Modifier
             if (currentDifficulty === "6") {
                 currentSpeed *= CONFIG.player.level6SpeedModifier;
                 sprintMax *= CONFIG.player.level6SpeedModifier;
             }
 
-            if ((keys['ShiftLeft'] || keys['ShiftRight']) && moving && !player.exhausted) {
-                player.isSprinting = true;
+            if (player.isSprinting) {
                 currentSpeed = sprintMax;
                 player.stamina -= CONFIG.player.sprintDrain;
                 if (player.stamina <= 0) {
                     player.stamina = 0;
                     player.exhausted = true;
+                    player.isSprinting = false;
                     staminaBar.classList.add('exhausted');
                 }
             } else {
@@ -783,14 +953,17 @@
 
             staminaBar.style.width = `${player.stamina}%`;
 
-            if (moving) {
-                let length = Math.sqrt(dx*dx + dy*dy);
-                dx = (dx / length) * currentSpeed;
-                dy = (dy / length) * currentSpeed;
+            if (moving && controlMode === 'keyboard') {
+                let length = Math.hypot(dx, dy);
+                dx = (dx / length);
+                dy = (dy / length);
             }
+            
+            let finalDx = dx * currentSpeed * speedMultiplier;
+            let finalDy = dy * currentSpeed * speedMultiplier;
 
             let localPlayerColliders = collidersHash.query(player.x - 50, player.y - 50, 100, 100);
-            moveEntityWithPhysics(player, dx, dy, localPlayerColliders);
+            moveEntityWithPhysics(player, finalDx, finalDy, localPlayerColliders);
 
             // 2. Win & Difficulty Update
             let distToWin = Math.hypot(extractionPoint.x - player.x, extractionPoint.y - player.y);
@@ -798,7 +971,7 @@
             
             if (distToWin < extractionPoint.radius + player.radius) {
                 gameActive = false;
-                winScreen.style.display = 'flex';
+                winScreen.classList.remove('hidden');
                 return;
             }
 
@@ -848,12 +1021,11 @@
                     e.targetY = player.y;
                 }
 
-                // DYNAMIC SCANNING / LOOK AROUND AI
                 if (diffSettings.lookAround && e.state !== 'chase') {
                     e.scanTime += diffSettings.scanSpeed;
                     e.angle = e.baseAngle + Math.sin(e.scanTime) * diffSettings.scanRange;
                 } else {
-                    e.angle = e.baseAngle; // Lock onto target if chasing
+                    e.angle = e.baseAngle; 
                 }
 
                 let canSee = false;
@@ -877,7 +1049,6 @@
                     e.state = 'chase';
                     e.targetX = player.x;
                     e.targetY = player.y;
-                    // Lock base angle to player for direct chasing
                     e.baseAngle = angleToPlayer; 
                     player.isSpotted = true;
                 } else if (e.state === 'chase') {
@@ -936,9 +1107,6 @@
                 statusDisplay.innerText = "Status: STEALTH";
                 statusDisplay.className = "stat";
             }
-
-            draw();
-            requestAnimationFrame(update);
         }
 
         function draw() {
@@ -953,7 +1121,6 @@
             ctx.fillStyle = '#1c1f21'; 
             for (let b of visibleBuildings) {
                 ctx.fillRect(b.x, b.y, b.w, b.h);
-                // Highlight Spawn Base slightly differently
                 if (b.x === 800 && b.y === 800) {
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
                     ctx.fillRect(b.x, b.y, b.w, b.h);
@@ -961,7 +1128,7 @@
                 }
             }
 
-            // Render ALL OBB Colliders (Walls + Indoor Obstacles + Outdoor Obstacles)
+            // Render ALL OBB Colliders
             let visibleColliders = collidersHash.query(camera.x, camera.y, canvas.width, canvas.height);
             for (let col of visibleColliders) {
                 ctx.fillStyle = col.color;
@@ -976,7 +1143,6 @@
                 ctx.stroke();
             }
 
-            // Spawn Building Text
             ctx.fillStyle = 'rgba(255,255,255,0.1)';
             ctx.font = 'bold 40px Courier New';
             ctx.textAlign = 'center';
@@ -1010,12 +1176,7 @@
             // Enemies & Vision Cones
             for (let e of enemies) {
                 let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
-                
-                // Spy Invisibility Logic Check
-                let isVisible = true;
-                if (e.isSpy && distToPlayer > CONFIG.enemies.spyRevealDist) {
-                    isVisible = false;
-                }
+                let isVisible = !(e.isSpy && distToPlayer > CONFIG.enemies.spyRevealDist);
 
                 if (isVisible) {
                     let rayCount = 45; 
@@ -1037,7 +1198,6 @@
                     else ctx.fillStyle = e.isSpy ? 'rgba(46, 204, 113, 0.05)' : (e.isEnforcer ? 'rgba(241, 196, 15, 0.1)' : 'rgba(255, 255, 255, 0.05)');
                     ctx.fill();
 
-                    // Enemy Body
                     ctx.beginPath();
                     ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
                     ctx.fillStyle = e.color;
@@ -1058,6 +1218,39 @@
             ctx.stroke();
 
             ctx.restore();
+
+            // Mouse Joystick Indicator
+            if (controlMode === 'mouse' && gameActive && !isPaused) {
+                let cx = canvas.width / 2;
+                let cy = canvas.height / 2;
+                
+                ctx.beginPath();
+                ctx.arc(cx, cy, mouseRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 10]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                let dist = Math.hypot(mouseX - cx, mouseY - cy);
+                let capDist = Math.min(dist, mouseRadius);
+                let angle = Math.atan2(mouseY - cy, mouseX - cx);
+                
+                let dotX = cx + Math.cos(angle) * capDist;
+                let dotY = cy + Math.sin(angle) * capDist;
+                
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(dotX, dotY);
+                ctx.strokeStyle = 'rgba(52, 152, 219, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(52, 152, 219, 0.8)';
+                ctx.fill();
+            }
 
             // Compass Overlay
             let angleToExit = Math.atan2(extractionPoint.y - player.y, extractionPoint.x - player.x);
@@ -1095,9 +1288,18 @@
             ctx.restore();
 
             setTimeout(() => {
-                gameOverScreen.style.display = 'flex';
+                gameOverScreen.classList.remove('hidden');
             }, 800);
         }
+
+        function gameLoop() {
+            update();
+            if (gameActive || isPaused) draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        requestAnimationFrame(gameLoop);
+
     </script>
 </body>
 </html>
